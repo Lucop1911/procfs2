@@ -1,13 +1,13 @@
 #[macro_use]
 extern crate criterion;
 
-use criterion::{black_box, Criterion};
+use criterion::{Criterion};
 use procfs2::proc;
 
 fn bench_proc_uptime(c: &mut Criterion) {
     c.bench_function("proc::uptime", |b| {
         b.iter(|| {
-            let _ = black_box(proc::uptime());
+            let _ = std::hint::black_box(proc::uptime());
         })
     });
 }
@@ -15,7 +15,7 @@ fn bench_proc_uptime(c: &mut Criterion) {
 fn bench_proc_loadavg(c: &mut Criterion) {
     c.bench_function("proc::loadavg", |b| {
         b.iter(|| {
-            let _ = black_box(proc::loadavg());
+            let _ = std::hint::black_box(proc::loadavg());
         })
     });
 }
@@ -23,7 +23,7 @@ fn bench_proc_loadavg(c: &mut Criterion) {
 fn bench_proc_stat(c: &mut Criterion) {
     c.bench_function("proc::stat", |b| {
         b.iter(|| {
-            let _ = black_box(proc::stat());
+            let _ = std::hint::black_box(proc::stat());
         })
     });
 }
@@ -31,7 +31,7 @@ fn bench_proc_stat(c: &mut Criterion) {
 fn bench_proc_cpuinfo(c: &mut Criterion) {
     c.bench_function("proc::cpuinfo", |b| {
         b.iter(|| {
-            let _ = black_box(proc::cpuinfo());
+            let _ = std::hint::black_box(proc::cpuinfo());
         })
     });
 }
@@ -39,7 +39,7 @@ fn bench_proc_cpuinfo(c: &mut Criterion) {
 fn bench_proc_meminfo(c: &mut Criterion) {
     c.bench_function("proc::meminfo", |b| {
         b.iter(|| {
-            let _ = black_box(proc::meminfo());
+            let _ = std::hint::black_box(proc::meminfo());
         })
     });
 }
@@ -48,7 +48,7 @@ fn bench_proc_process_stat(c: &mut Criterion) {
     let p = proc::Process::current().unwrap();
     c.bench_function("Process::stat", |b| {
         b.iter(|| {
-            let _ = black_box(p.stat());
+            let _ = std::hint::black_box(p.stat());
         })
     });
 }
@@ -57,7 +57,7 @@ fn bench_proc_process_status(c: &mut Criterion) {
     let p = proc::Process::current().unwrap();
     c.bench_function("Process::status", |b| {
         b.iter(|| {
-            let _ = black_box(p.status());
+            let _ = std::hint::black_box(p.status());
         })
     });
 }
@@ -66,7 +66,7 @@ fn bench_proc_maps(c: &mut Criterion) {
     let p = proc::Process::current().unwrap();
     c.bench_function("Process::maps", |b| {
         b.iter(|| {
-            let _ = black_box(p.maps());
+            let _ = std::hint::black_box(p.maps());
         })
     });
 }
@@ -76,7 +76,7 @@ fn bench_sys_block_stat(c: &mut Criterion) {
     if let Some(dev) = devices.first() {
         c.bench_function("sys::BlockDevice::stat", |b| {
             b.iter(|| {
-                let _ = black_box(dev.stat());
+                let _ = std::hint::black_box(dev.stat());
             })
         });
     }
@@ -87,7 +87,7 @@ fn bench_sys_net_stats(c: &mut Criterion) {
     if let Some(iface) = ifaces.first() {
         c.bench_function("sys::NetInterface::stats", |b| {
             b.iter(|| {
-                let _ = black_box(iface.stats());
+                let _ = std::hint::black_box(iface.stats());
             })
         });
     }
