@@ -19,7 +19,7 @@ A modern, zero-copy, strongly-typed Rust library for reading Linux's `/proc` and
 ## Quick Start
 
 ```rust
-use procfs2::{proc, sys, Process};
+use procfs2::proc;
 
 fn main() -> procfs2::Result<()> {
     // System-wide statistics
@@ -31,6 +31,7 @@ fn main() -> procfs2::Result<()> {
     println!("Load: {:.2} {:.2} {:.2}", load.one, load.five, load.fifteen);
 
     // Current process
+    use procfs2::proc::Process;
     let me = Process::current()?;
     let status = me.status()?;
     println!("Process: {} ({:?})", status.name, status.state);
@@ -48,7 +49,8 @@ fn main() -> procfs2::Result<()> {
     }
 
     // System devices
-    for dev in sys::BlockDevice::all().filter_map(|r| r.ok()) {
+    use procfs2::sys::{BlockDevice, NetInterface};
+    for dev in BlockDevice::all().filter_map(|r| r.ok()) {
         println!("Block device: {}", dev.name);
         if let Ok(stat) = dev.stat() {
             println!("  reads={}, writes={}", stat.reads_completed, stat.writes_completed);
@@ -56,7 +58,7 @@ fn main() -> procfs2::Result<()> {
     }
 
     // Network interfaces
-    for iface in sys::NetInterface::all().filter_map(|r| r.ok()) {
+    for iface in NetInterface::all().filter_map(|r| r.ok()) {
         println!("Interface: {}", iface.name);
         if let Ok(stats) = iface.stats() {
             println!("  RX: {} bytes, TX: {} bytes", stats.rx_bytes.0, stats.tx_bytes.0);
@@ -109,26 +111,33 @@ features = ["async", "serde", "macros", "watch"]
 
 #### Per-Process (`Process`)
 ```rust
-let process = Process::new(pid)?;
-let process = Process::current()?;
-let all_procs = Process::all(); // Iterator over all PIDs
+use procfs2::proc::Process;
 
-// Methods
-process.stat()?;       // /proc/PID/stat
-process.status()?;     // /proc/PID/status
-process.cmdline()?;    // /proc/PID/cmdline
-process.environ()?;     // /proc/PID/environ
-process.exe()?;         // /proc/PID/exe
-process.cwd()?;         // /proc/PID/cwd
-process.maps()?;        // /proc/PID/maps
-process.smaps()?;       // /proc/PID/smaps
-process.fds()?;         // /proc/PID/fd/
-process.io()?;          // /proc/PID/io
-process.limits()?;      // /proc/PID/limits
-process.mountinfo()?;   // /proc/PID/mountinfo
-process.cgroup()?;      // /proc/PID/cgroup
-process.namespaces()?;  // /proc/PID/ns/
-process.threads()?;     // /proc/PID/task/
+fn main() -> procfs2::Result<()> {
+    // Open the current process
+    let me = Process::current()?;
+    // Iterate over all PIDs on the system
+    let _all_procs = Process::all();
+
+    // Methods
+    me.stat()?;       // /proc/PID/stat
+    me.status()?;     // /proc/PID/status
+    me.cmdline()?;    // /proc/PID/cmdline
+    me.environ()?;    // /proc/PID/environ
+    me.exe()?;         // /proc/PID/exe
+    me.cwd()?;         // /proc/PID/cwd
+    me.maps()?;        // /proc/PID/maps
+    me.smaps()?;      // /proc/PID/smaps
+    me.fds()?;         // /proc/PID/fd/
+    me.io()?;          // /proc/PID/io
+    me.limits()?;      // /proc/PID/limits
+    me.mountinfo()?;   // /proc/PID/mountinfo
+    me.cgroup()?;      // /proc/PID/cgroup
+    me.namespaces()?;  // /proc/PID/ns/
+    for _ in me.threads() {} // /proc/PID/task/
+
+    Ok(())
+}
 ```
 
 #### Network (`proc::net`)
@@ -153,16 +162,22 @@ process.threads()?;     // /proc/PID/task/
 All numeric values carry their unit in the type:
 
 ```rust
-use procfs2::{Bytes, Kibibytes, Pages, Jiffies, Milliseconds};
+use procfs2::proc;
 
-let mem = proc::meminfo()?;
-let kb: Kibibytes = mem.total;           // 14175680 KiB
-let bytes: Bytes = Bytes::from(kb);      // convert to bytes
-println!("{} MiB", bytes.as_mib());    // convert to MiB
+fn main() -> procfs2::Result<()> {
+    use procfs2::util::Kibibytes;
+    let mem = proc::meminfo()?;
+    let kb: Kibibytes = mem.total;           // e.g., 14175680 KiB
+    use procfs2::util::Bytes;
+    let bytes: Bytes = Bytes::from(kb);      // convert to bytes
+    println!("{} MiB", bytes.as_mib());     // convert to MiB
 
-// Jiffies (clock ticks, typically 10ms each)
-let stat = proc::stat()?;
-let user_secs = stat.cpu_total.user.0 as f64 / 100.0; // convert to seconds
+    // Jiffies (clock ticks, typically 10ms each)
+    let stat = proc::stat()?;
+    let user_secs = stat.cpu_total.user.0 as f64 / 100.0; // convert to seconds
+
+    Ok(())
+}
 ```
 
 ## Error Handling
@@ -172,10 +187,10 @@ All operations return `procfs2::Result<T>` which is `Result<T, procfs2::Error>`:
 ```rust
 pub enum Error {
     Io(std::io::Error),
-    Parse { path: PathBuf, line: usize, msg: &'static str },
+    Parse { path: std::path::PathBuf, line: usize, msg: &'static str },
     ProcessGone(u32),
-    PermissionDenied(PathBuf),
-    UnsupportedKernel { required: KernelVersion, found: KernelVersion },
+    PermissionDenied(std::path::PathBuf),
+    UnsupportedKernel { required: procfs2::KernelVersion, found: procfs2::KernelVersion },
 }
 ```
 
@@ -222,7 +237,7 @@ cargo bench
 The `#[derive(ProcKeyValue)]` macro is in the `procfs2-macros` crate.
 Enable with the `macros` feature:
 
-```rust
+```rust,ignore
 use procfs2::macros::ProcKeyValue;
 
 #[derive(ProcKeyValue)]
