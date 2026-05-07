@@ -1,0 +1,87 @@
+# procfs2 Implementation Order
+# Implement one file per day, in order. Dependencies flow top-to-bottom.
+
+## Phase 1: Foundation (Days 1-5)
+
+1.  Cargo.toml                          — crate metadata, feature flags, dependencies
+2.  src/lib.rs                          — module declarations, re-exports, cfg(not(linux)) error, top-level docs
+3.  src/error.rs                        — Error enum, Result type, ProcessGone, PermissionDenied, etc.
+4.  src/util/parse.rs                   — shared parsers: key-value, space-delimited, hex, integer
+5.  src/util/bytes.rs                   — unit newtypes: Bytes, Kibibytes, Pages, Jiffies, Milliseconds + conversions
+6.  src/util/mod.rs                     — util module re-exports
+
+## Phase 2: Core System-Wide /proc (Days 7-12)
+
+7.  src/proc/version.rs                 — /proc/version → KernelVersion (current(), at_least())
+8.  src/proc/uptime.rs                  — /proc/uptime → Uptime { total, idle }
+9.  src/proc/loadavg.rs                 — /proc/loadavg → LoadAvg { one, five, fifteen, ... }
+10. src/proc/meminfo.rs                 — /proc/meminfo → MemInfo (all Kibibytes fields)
+11. src/proc/stat.rs                    — /proc/stat → SystemStat (per-CPU times, ctxt, btime, ...)
+12. src/proc/cpuinfo.rs                 — /proc/cpuinfo → Vec<CpuCore> with CpuFlag
+
+## Phase 3: Per-Process Core (Days 13-18)
+
+13. src/proc/process/mod.rs             — Process struct, new(), current(), all()
+14. src/proc/process/stat.rs            — /proc/PID/stat → ProcessStat
+15. src/proc/process/status.rs          — /proc/PID/status → ProcessStatus, Uids, Gids, ProcessState enum
+16. src/proc/process/maps.rs            — /proc/PID/maps → Vec<MemoryMap>, MapPermissions, MapPathname
+17. src/proc/process/io.rs              — /proc/PID/io → ProcessIo
+18. src/proc/process/limits.rs          — /proc/PID/limits → ProcessLimits
+
+## Phase 4: Per-Process Extended (Days 19-24)
+
+19. src/proc/process/fd.rs              — /proc/PID/fd/ → Vec<Fd>, FdTarget enum
+20. src/proc/process/mountinfo.rs       — /proc/PID/mountinfo → Vec<MountInfo>
+21. src/proc/process/cgroup.rs          — /proc/PID/cgroup → Vec<CgroupEntry>
+22. src/proc/process/threads.rs         — /proc/PID/task/ → thread iteration
+23. src/proc/process/ns.rs              — /proc/PID/ns/ → namespace info
+24. src/proc/process/cmdline_environ.rs — /proc/PID/cmdline + /proc/PID/environ (null-delimited parsing)
+
+## Phase 5: Network /proc/net (Days 25-31)
+
+25. src/proc/net/mod.rs                 — net module re-exports
+26. src/proc/net/tcp.rs                 — /proc/net/tcp, tcp6 → TcpEntry, TcpState enum
+27. src/proc/net/udp.rs                 — /proc/net/udp, udp6 → UdpEntry
+28. src/proc/net/unix.rs                — /proc/net/unix → UnixEntry
+29. src/proc/net/dev.rs                 — /proc/net/dev → NetDevStat
+30. src/proc/net/arp.rs                 — /proc/net/arp → ArpEntry
+31. src/proc/net/route.rs               — /proc/net/route → RouteEntry
+
+## Phase 6: Mounts & Cgroups System-Wide (Days 32-34)
+
+32. src/proc/mounts.rs                  — /proc/mounts → mount list
+33. src/proc/cgroups.rs                 — /proc/cgroups → system-wide CgroupStat list
+34. src/proc/mod.rs                     — proc module re-exports, system-wide fn re-exports
+
+## Phase 7: /sys Module (Days 35-40)
+
+35. src/sys/mod.rs                      — /sys root helpers
+36. src/sys/block.rs                    — /sys/block/* → BlockDevice, BlockStat, QueueParams
+37. src/sys/net.rs                      — /sys/class/net/* → NetInterface, NetIfStat, OperState, MacAddress
+38. src/sys/power.rs                    — /sys/class/power_supply/* → PowerSupply, ChargeStatus
+39. src/sys/cpu.rs                      — /sys/devices/system/cpu/* → cpu_count, online_cpus, CpuFreqInfo
+40. src/sys/mod.rs (update)             — finalize sys re-exports
+
+## Phase 8: Proc-Macro (Day 41-42)
+
+41. procfs2-macros/Cargo.toml           — separate proc-macro crate
+42. procfs2-macros/src/lib.rs           — #[derive(ProcKeyValue)] macro using syn + quote
+
+## Phase 9: Optional Features (Days 43-45)
+
+43. src/watch/inotify.rs                — inotify-based Watcher, WatchHandle, WatchEvent
+44. src/async_helpers.rs                — tokio-backed async read variants (feature = "async")
+45. src/serde_impls.rs                  — Serialize/Deserialize derives (feature = "serde")
+
+## Phase 10: Tests & Polish (Days 46+)
+
+46. tests/fixtures/                     — static byte fixtures for all /proc file formats
+47. tests/unit_parse.rs                 — unit tests: parse each fixture into expected structs
+48. tests/integration.rs                — integration tests against live /proc and /sys
+49. tests/fuzz/                         — cargo-fuzz targets for all parsers
+...................................................................................................................
+50. benches/                            — criterion benchmarks for hot paths
+51. README.md                           — crate documentation, feature flags, examples
+52. CI/CD (.github/workflows/)          — miri, cargo-fuzz, MSRV 1.75 check, linux-only gate
+
+opencode -s ses_2a71b74d5ffepbn70M1z4qiksu

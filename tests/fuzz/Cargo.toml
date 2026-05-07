@@ -1,0 +1,17 @@
+# Fuzz targets for procfs2
+# 
+# To run fuzzing:
+# 1. Install cargo-fuzz: cargo install cargo-fuzz
+# 2. Run: cargo fuzz run <target>
+
+[package]
+name = "procfs2-fuzz"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+procfs2 = { path = ".." }
+libfuzzer-sys = "0.4"
+
+[profile.release]
+debug = true
