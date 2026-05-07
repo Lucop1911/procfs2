@@ -1,11 +1,10 @@
 [workspace]
 members = ["procfs2-macros", "."]
 
-authors = ["lucop1911"]
-
 [package]
 name = "procfs2"
 version = "0.2.0"
+authors = ["lucop1911"]
 edition = "2021"
 rust-version = "1.75"
 description = "A modern, zero-copy, strongly-typed Rust library for reading Linux /proc and /sys"
@@ -15,10 +14,10 @@ keywords = ["procfs", "sysfs", "linux", "proc", "system-info"]
 categories = ["filesystem", "os", "parsing"]
 
 [dependencies]
-bitflags = "2"
+bitflags = "2.11.1"
 libc = "0.2.186"
-tokio = { version = "1", features = ["fs", "net"], optional = true }
-serde = { version = "1", features = ["derive"], optional = true }
+tokio = { version = "1.52.2", features = ["fs", "net"], optional = true }
+serde = { version = "1.0.228", features = ["derive"], optional = true }
 procfs2-macros = { path = "./procfs2-macros", optional = true }
 
 [[bench]]
@@ -26,7 +25,7 @@ name = "procfs2_bench"
 harness = false
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = "0.8.2"
 
 [features]
 default = []
