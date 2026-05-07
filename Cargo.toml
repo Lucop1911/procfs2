@@ -1,6 +1,8 @@
 [workspace]
 members = ["procfs2-macros", "."]
 
+authors = ["lucop1911"]
+
 [package]
 name = "procfs2"
 version = "0.2.0"
