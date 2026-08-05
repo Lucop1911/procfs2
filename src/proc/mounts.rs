@@ -72,14 +72,13 @@ fn decode_escaped_path(s: &[u8]) -> Box<str> {
     let mut i = 0;
 
     while i < s.len() {
-        if s[i] == b'\\'
-            && i + 3 < s.len()
-            && let Ok(val) =
-                u8::from_str_radix(std::str::from_utf8(&s[i + 1..i + 4]).unwrap_or("000"), 8)
-        {
-            result.push(val);
-            i += 4;
-            continue;
+        if s[i] == b'\\' && i + 3 < s.len() {
+            let oct = std::str::from_utf8(&s[i + 1..i + 4]).unwrap_or("000");
+            if let Ok(val) = u8::from_str_radix(oct, 8) {
+                result.push(val);
+                i += 4;
+                continue;
+            }
         }
         result.push(s[i]);
         i += 1;

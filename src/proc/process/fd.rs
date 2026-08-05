@@ -35,15 +35,15 @@ impl FdTarget {
     /// The classification is purely string-based, matching the
     /// patterns the kernel uses when creating the symlinks.
     pub fn parse(target: &str) -> Self {
-        if let Some(inode) = target.strip_prefix("socket:[")
-            && let Some(inode) = inode.strip_suffix(']')
-        {
-            return FdTarget::Socket(inode.parse().unwrap_or(0));
+        if let Some(inode) = target.strip_prefix("socket:[") {
+            if let Some(inode) = inode.strip_suffix(']') {
+                return FdTarget::Socket(inode.parse().unwrap_or(0));
+            }
         }
-        if let Some(inode) = target.strip_prefix("pipe:[")
-            && let Some(inode) = inode.strip_suffix(']')
-        {
-            return FdTarget::Pipe(inode.parse().unwrap_or(0));
+        if let Some(inode) = target.strip_prefix("pipe:[") {
+            if let Some(inode) = inode.strip_suffix(']') {
+                return FdTarget::Pipe(inode.parse().unwrap_or(0));
+            }
         }
         if let Some(kind) = target.strip_prefix("anon_inode:") {
             return FdTarget::AnonInode(kind.to_string().into_boxed_str());

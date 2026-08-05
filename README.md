@@ -196,7 +196,7 @@ pub enum Error {
 
 ## Minimum Supported Rust Version
 
-Rust 1.85 — required for the 2024 edition.
+Rust 1.86 — verified in CI by building with the 1.86.0 toolchain.
 
 ## License
 
