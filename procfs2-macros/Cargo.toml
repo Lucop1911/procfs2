@@ -1,0 +1,16 @@
+[package]
+name = "procfs2-macros"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Proc-macro crate for procfs2: #[derive(ProcKeyValue)]"
+license = "MIT"
+repository = "https://github.com/lucop1911/procfs2"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2.0.117", features = ["full"] }
+quote = "1.0.45"
+proc-macro2 = "1.0.106"
