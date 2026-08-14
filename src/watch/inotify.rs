@@ -205,7 +205,9 @@ impl Watcher {
                 } else {
                     raw
                 };
-                Some(std::path::PathBuf::from(std::ffi::OsString::from_vec(trimmed.to_vec())))
+                Some(std::path::PathBuf::from(std::ffi::OsString::from_vec(
+                    trimmed.to_vec(),
+                )))
             } else {
                 None
             };
@@ -218,12 +220,7 @@ impl Watcher {
             offset += aligned;
 
             // Build path: if watch path exists and name present, join
-            let base_path = self
-                .watches
-                .lock()
-                .unwrap()
-                .get(&(ev.wd as u32))
-                .cloned();
+            let base_path = self.watches.lock().unwrap().get(&(ev.wd as u32)).cloned();
 
             let full_path = match (&base_path, &name) {
                 (Some(bp), Some(nm)) => Some(bp.join(nm)),
@@ -322,7 +319,7 @@ impl Watcher {
 }
 
 /// Handle for a watched path.
-/// 
+///
 /// Dropping a `WatchHandle` removes the associated watch.
 pub struct WatchHandle {
     /// The watch descriptor.
