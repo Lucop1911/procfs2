@@ -1,0 +1,5 @@
+[alias]
+b = ["build", "--all-features"]
+t = ["test", "--all-features"]
+c = ["clippy", "--all-features"]
+r = ["run", "--all-features"]

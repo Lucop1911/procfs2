@@ -21,9 +21,10 @@
 //! ```
 
 use std::collections::HashMap;
-use std::os::unix::ffi::OsStrExt;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::io::RawFd;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use crate::error::{Error, Result};
 
@@ -36,13 +37,15 @@ pub struct Watcher {
     /// The inotify file descriptor.
     fd: RawFd,
     /// Mapping from watch descriptors to watched paths.
-    watches: HashMap<u32, PathBuf>,
+    watches: Arc<Mutex<HashMap<u32, PathBuf>>>,
 }
 
 impl Watcher {
     /// Creates a new inotify watcher instance.
     ///
-    /// Initializes a new inotify instance using `inotify_init()`.
+    /// Initializes a new inotify instance using `inotify_init()` and sets the
+    /// file descriptor to non-blocking mode so `try_next_event` can return
+    /// immediately when no events are available.
     ///
     /// # Errors
     ///
@@ -55,16 +58,24 @@ impl Watcher {
             return Err(Error::Io(std::io::Error::last_os_error()));
         }
 
+        // Set O_NONBLOCK on fd so read returns EAGAIN instead of blocking
+        unsafe {
+            let flags = libc::fcntl(fd, libc::F_GETFL);
+            if flags >= 0 {
+                libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK);
+            }
+        }
+
         Ok(Watcher {
             fd,
-            watches: HashMap::new(),
+            watches: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
     /// Adds a watch for the given path.
     ///
     /// Watches the specified file or directory for all events.
-    /// Returns a `WatchHandle` that can be used to remove the watch later.
+    /// Returns a `WatchHandle` that will remove the watch when dropped.
     ///
     /// # Arguments
     ///
@@ -86,13 +97,6 @@ impl Watcher {
         })?;
 
         // inotify mask constants:
-        // IN_ACCESS - file accessed
-        // IN_MODIFY - file modified
-        // IN_CREATE - file created
-        // IN_DELETE - file deleted
-        // IN_MOVED_FROM - file moved from
-        // IN_MOVED_TO - file moved to
-        // IN_ISDIR - event is for a directory
         const MASK: u32 = libc::IN_ACCESS
             | libc::IN_MODIFY
             | libc::IN_CREATE
@@ -101,9 +105,7 @@ impl Watcher {
             | libc::IN_MOVED_TO
             | libc::IN_ISDIR;
 
-        // Safe:
-        // - c_string is valid C string (checked above)
-        // - inotify_add_watch is a safe syscall that adds a watch
+        // Safe: inotify_add_watch is a syscall
         let wd = unsafe { libc::inotify_add_watch(self.fd, c_string.as_ptr(), MASK) };
 
         if wd < 0 {
@@ -112,9 +114,13 @@ impl Watcher {
 
         // Store the path for later lookup
         let path_buf = std::path::Path::new(&path).to_path_buf();
-        self.watches.insert(wd as u32, path_buf);
+        self.watches.lock().unwrap().insert(wd as u32, path_buf);
 
-        Ok(WatchHandle { wd: wd as u32 })
+        Ok(WatchHandle {
+            wd: wd as u32,
+            fd: self.fd,
+            watches: Arc::clone(&self.watches),
+        })
     }
 
     /// Retrieves the next watch event (blocking).
@@ -130,7 +136,6 @@ impl Watcher {
                 Some(event) => return Ok(event),
                 None => {
                     // Wait for data to be available using poll
-                    // Safe: we own the fd and will not close it until self is dropped
                     let mut pollfd = libc::pollfd {
                         fd: self.fd,
                         events: libc::POLLIN,
@@ -155,25 +160,15 @@ impl Watcher {
     ///
     /// Returns `Error::Io` if reading fails.
     pub fn try_next_event(&self) -> Result<Option<WatchEvent>> {
-        // Buffer for inotify event structure:
-        // struct inotify_event {
-        //     int      wd;       /* watch descriptor */
-        //     uint32_t mask;     /* event mask */
-        //     uint32_t cookie;   /* cookie to synchronize two events */
-        //     uint32_t len;      /* length of name */
-        //     char     name[];   /* optional null-terminated name */
-        // }
-        // We need at least sizeof(inotify_event) = 16 bytes, plus space for name
+        // Buffer for inotify events
         let mut buf = [0u8; 4096];
 
-        // Safe:
-        // - self.fd is a valid file descriptor from inotify_init
-        // - buf is valid for reading
-        // - we check the return value for errors
+        // Read from the non-blocking fd
         let n = unsafe { libc::read(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };
 
         if n < 0 {
             let err = std::io::Error::last_os_error();
+            // EAGAIN / WouldBlock means no data available on non-blocking fd
             if err.kind() == std::io::ErrorKind::WouldBlock {
                 return Ok(None);
             }
@@ -184,54 +179,88 @@ impl Watcher {
             return Ok(None);
         }
 
-        // Parse the events from the buffer
-        if n as usize > 0 {
-            // Safe: we're reading from our own buffer with known size
-            let event = unsafe { &*(buf.as_ptr() as *const libc::inotify_event) };
+        // Parse potentially multiple events in the buffer; return the first parsed event
+        let mut offset = 0usize;
+        while offset < n as usize {
+            // Ensure there is enough space for the fixed-size header
+            if offset + std::mem::size_of::<libc::inotify_event>() > n as usize {
+                break;
+            }
 
-            let watch_event = self.parse_event(event)?;
+            // SAFETY: buffer is valid and large enough for header slice
+            let ev_ptr = unsafe { buf.as_ptr().add(offset) as *const libc::inotify_event };
+            let ev = unsafe { &*ev_ptr };
 
-            // Return the first event (there might be more, but we process one at a time)
-            return Ok(Some(watch_event));
+            let name_len = ev.len as usize;
+            let header_size = std::mem::size_of::<libc::inotify_event>();
+            let name_start = offset + header_size;
+            let name_end = name_start + name_len;
+
+            let name = if name_len > 0 && name_end <= n as usize {
+                // Extract name bytes (null-terminated)
+                let raw = &buf[name_start..name_end];
+                // Trim trailing nulls
+                let trimmed = if let Some(pos) = raw.iter().position(|&b| b == 0) {
+                    &raw[..pos]
+                } else {
+                    raw
+                };
+                Some(std::path::PathBuf::from(std::ffi::OsString::from_vec(trimmed.to_vec())))
+            } else {
+                None
+            };
+
+            // Move offset to next event (aligned to sizeof inotify_event + name rounded up)
+            let total_event_size = header_size + name_len;
+            let aligned = (total_event_size + std::mem::size_of::<libc::c_long>() - 1)
+                & !(std::mem::size_of::<libc::c_long>() - 1);
+
+            offset += aligned;
+
+            // Build path: if watch path exists and name present, join
+            let base_path = self
+                .watches
+                .lock()
+                .unwrap()
+                .get(&(ev.wd as u32))
+                .cloned();
+
+            let full_path = match (&base_path, &name) {
+                (Some(bp), Some(nm)) => Some(bp.join(nm)),
+                (Some(bp), None) => Some(bp.clone()),
+                _ => None,
+            };
+
+            // Convert masks to events
+            if (ev.mask & libc::IN_CREATE) != 0 {
+                return Ok(Some(WatchEvent::Created(full_path)));
+            }
+            if (ev.mask & libc::IN_MODIFY) != 0 {
+                return Ok(Some(WatchEvent::Modified(full_path)));
+            }
+            if (ev.mask & libc::IN_DELETE) != 0 {
+                return Ok(Some(WatchEvent::Deleted(full_path)));
+            }
+            if (ev.mask & libc::IN_MOVED_FROM) != 0 {
+                return Ok(Some(WatchEvent::MovedFrom {
+                    path: full_path,
+                    cookie: ev.cookie,
+                }));
+            }
+            if (ev.mask & libc::IN_MOVED_TO) != 0 {
+                return Ok(Some(WatchEvent::MovedTo {
+                    path: full_path,
+                    cookie: ev.cookie,
+                }));
+            }
+            if (ev.mask & libc::IN_ACCESS) != 0 {
+                return Ok(Some(WatchEvent::Accessed(full_path)));
+            }
+
+            // Otherwise continue to next event in buffer
         }
 
         Ok(None)
-    }
-
-    /// Parses an inotify_event into a WatchEvent.
-    fn parse_event(&self, event: &libc::inotify_event) -> Result<WatchEvent> {
-        let path = self.watches.get(&(event.wd as u32)).cloned();
-
-        // Convert inotify mask bits to WatchEvent
-        let _is_dir = (event.mask & libc::IN_ISDIR) != 0;
-
-        if (event.mask & libc::IN_CREATE) != 0 {
-            return Ok(WatchEvent::Created(path));
-        }
-        if (event.mask & libc::IN_MODIFY) != 0 {
-            return Ok(WatchEvent::Modified(path));
-        }
-        if (event.mask & libc::IN_DELETE) != 0 {
-            return Ok(WatchEvent::Deleted(path));
-        }
-        if (event.mask & libc::IN_MOVED_FROM) != 0 {
-            return Ok(WatchEvent::MovedFrom {
-                path,
-                cookie: event.cookie,
-            });
-        }
-        if (event.mask & libc::IN_MOVED_TO) != 0 {
-            return Ok(WatchEvent::MovedTo {
-                path,
-                cookie: event.cookie,
-            });
-        }
-        if (event.mask & libc::IN_ACCESS) != 0 {
-            return Ok(WatchEvent::Accessed(path));
-        }
-
-        // Unknown event type - skip it
-        Ok(WatchEvent::Unknown)
     }
 
     /// Removes a watch by watch descriptor.
@@ -244,7 +273,7 @@ impl Watcher {
             return Err(Error::Io(std::io::Error::last_os_error()));
         }
 
-        self.watches.remove(&wd);
+        self.watches.lock().unwrap().remove(&wd);
         Ok(())
     }
 }
@@ -293,17 +322,31 @@ impl Watcher {
 }
 
 /// Handle for a watched path.
-///
+/// 
 /// Dropping a `WatchHandle` removes the associated watch.
 pub struct WatchHandle {
     /// The watch descriptor.
     wd: u32,
+    /// The inotify fd (needed to remove the watch on drop).
+    fd: RawFd,
+    /// Shared watches map for bookkeeping.
+    watches: Arc<Mutex<HashMap<u32, PathBuf>>>,
 }
 
 impl WatchHandle {
     /// Returns the watch descriptor.
     pub fn watch_descriptor(&self) -> u32 {
         self.wd
+    }
+}
+
+impl Drop for WatchHandle {
+    fn drop(&mut self) {
+        // Attempt to remove the watch; ignore errors in Drop
+        unsafe {
+            let _ = libc::inotify_rm_watch(self.fd, self.wd as libc::c_int);
+        }
+        let _ = self.watches.lock().map(|mut m| m.remove(&self.wd));
     }
 }
 

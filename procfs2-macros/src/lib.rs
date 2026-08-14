@@ -11,9 +11,9 @@ pub fn proc_key_value_derive(input: TokenStream) -> TokenStream {
     let fields = match &input.data {
         Data::Struct(s) => match &s.fields {
             Fields::Named(fields) => &fields.named,
-            _ => panic!("ProcKeyValue only supports structs with named fields"),
+            _ => return syn::Error::new_spanned(&input.ident, "ProcKeyValue only supports structs with named fields").to_compile_error().into(),
         },
-        _ => panic!("ProcKeyValue only supports structs"),
+        _ => return syn::Error::new_spanned(&input.ident, "ProcKeyValue only supports structs").to_compile_error().into(),
     };
 
     let mut field_parsers = Vec::new();
@@ -23,12 +23,10 @@ pub fn proc_key_value_derive(input: TokenStream) -> TokenStream {
         let field_name = field.ident.as_ref().expect("named field");
         let field_type = &field.ty;
 
-        let proc_key = extract_proc_key_attr(&field.attrs).unwrap_or_else(|| {
-            panic!(
-                "Field {} must have #[proc_key = \"...\"] attribute",
-                field_name
-            )
-        });
+        let proc_key = match extract_proc_key_attr(&field.attrs) {
+            Some(v) => v,
+            None => return syn::Error::new_spanned(field, format!("Field {} must have #[proc_key = \"...\"] attribute", field_name)).to_compile_error().into(),
+        };
 
         let is_option = is_option(field_type);
         let parse_expr = generate_parse_expr(field_type);
