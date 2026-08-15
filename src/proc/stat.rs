@@ -109,7 +109,7 @@ pub fn stat() -> Result<SystemStat> {
             continue;
         }
 
-        let fields = parse::split_spaces(line);
+        let fields = parse::SplitFields::<16>::new(line);
         if fields.is_empty() {
             continue;
         }

@@ -220,6 +220,48 @@ pub fn split_spaces(slice: &[u8]) -> Vec<&[u8]> {
         .collect()
 }
 
+/// An allocation-free split of a byte slice into whitespace-separated fields.
+///
+/// Fields are stored in a fixed-size stack buffer rather than a `Vec`, so
+/// splitting inside per-line loops does not pay a heap allocation for every
+/// line. If a line contains more than `N` fields, the excess fields are
+/// ignored; no `/proc` line exceeds `N` in practice.
+///
+/// Splitting semantics match [`split_spaces`]: runs of spaces and tabs are
+/// collapsed and empty segments are skipped.
+pub struct SplitFields<'a, const N: usize> {
+    fields: [&'a [u8]; N],
+    len: usize,
+}
+
+impl<'a, const N: usize> SplitFields<'a, N> {
+    /// Splits `slice` on runs of spaces and tabs.
+    pub fn new(slice: &'a [u8]) -> Self {
+        const EMPTY: &[u8] = &[];
+        let mut fields = [EMPTY; N];
+        let mut len = 0;
+        for field in slice.split(|&b| b == b' ' || b == b'\t') {
+            if field.is_empty() {
+                continue;
+            }
+            if len >= N {
+                break;
+            }
+            fields[len] = field;
+            len += 1;
+        }
+        SplitFields { fields, len }
+    }
+}
+
+impl<'a, const N: usize> std::ops::Deref for SplitFields<'a, N> {
+    type Target = [&'a [u8]];
+
+    fn deref(&self) -> &Self::Target {
+        &self.fields[..self.len]
+    }
+}
+
 /// Returns the first whitespace-delimited token of `slice`.
 ///
 /// Used to strip unit suffixes (e.g. the ` kB` in `9764412 kB`)

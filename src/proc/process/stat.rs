@@ -112,10 +112,7 @@ impl ProcessStat {
         })?;
 
         let rest = &bytes[last_paren + 2..];
-        let fields: Vec<&[u8]> = rest
-            .split(|&b| b == b' ')
-            .filter(|f| !f.is_empty())
-            .collect();
+        let fields = parse::SplitFields::<32>::new(rest);
 
         if fields.len() < 22 {
             return Err(Error::Parse {

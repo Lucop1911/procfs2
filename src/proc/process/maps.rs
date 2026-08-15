@@ -192,7 +192,7 @@ impl MemoryMap {
     }
 
     fn parse_line(line: &[u8]) -> Result<Self> {
-        let fields: Vec<&[u8]> = parse::split_spaces(line);
+        let fields = parse::SplitFields::<8>::new(line);
         if fields.len() < 5 {
             return Err(Error::Parse {
                 path: std::path::PathBuf::from("<maps>"),
