@@ -124,4 +124,22 @@ mod tests {
             let _ = cpu.processor;
         }
     }
+
+    #[test]
+    fn test_cmdline() {
+        let args = procfs2::proc::cmdline().expect("Failed to read /proc/cmdline");
+
+        // Should have at least one boot parameter
+        assert!(!args.is_empty(), "Should have at least one argument");
+    }
+
+    #[test]
+    fn test_cmdline_fields() {
+        let args = procfs2::proc::cmdline().expect("Failed to read /proc/cmdline");
+
+        // No argument should be empty
+        for arg in &args {
+            assert!(!arg.is_empty(), "Argument should not be empty");
+        }
+    }
 }

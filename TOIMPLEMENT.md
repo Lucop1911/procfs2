@@ -1,6 +1,6 @@
 ## System-wide
 
-- [ ] `/proc/cmdline` — kernel command line. Space-separated boot parameters. Trivial split on spaces.
+- [ x ] `/proc/cmdline` — kernel command line. Space-separated boot parameters. Trivial split on spaces.
 - [ ] `/proc/devices` — character and block device major numbers. Two sections, `Character devices:` / `Block devices:`, lines are `<major> <name>`.
 - [ ] `/proc/filesystems` — registered filesystems. Lines optionally prefixed by `nodev `, then `<fsname>`.
 - [ ] `/proc/swaps` — swap devices. Header + lines: `Filename  Type  Size  Used  Priority`.

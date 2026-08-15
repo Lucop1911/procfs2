@@ -17,6 +17,12 @@ fn main() {
     println!("Free: {} kB", mem.free.0);
     println!("Available: {} kB", mem.available.0);
 
+    println!("\n=== /proc/cmdline ===");
+    let cmdline = proc::cmdline().unwrap();
+    for (i, arg) in cmdline.iter().enumerate() {
+        println!("  {}: {}", i, arg);
+    }
+
     println!("\n=== /proc/self/stat ===");
     let me = proc::Process::current().unwrap();
     let stat = me.stat().unwrap();
