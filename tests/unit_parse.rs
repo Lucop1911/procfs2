@@ -150,7 +150,10 @@ mod tests {
         // Every controller should have a name (hierarchy is 0 on
         // unified cgroup v2 systems)
         for cg in &cgroups {
-            assert!(!cg.subsys_name.is_empty(), "Controller name should not be empty");
+            assert!(
+                !cg.subsys_name.is_empty(),
+                "Controller name should not be empty"
+            );
         }
     }
 
@@ -182,14 +185,20 @@ mod tests {
     fn test_net_arp() {
         // The ARP table may legitimately be empty; just ensure no parse errors
         let entries: Vec<_> = procfs2::proc::net::arp().collect();
-        assert!(entries.iter().all(|r| r.is_ok()), "ARP entries should parse");
+        assert!(
+            entries.iter().all(|r| r.is_ok()),
+            "ARP entries should parse"
+        );
     }
 
     #[test]
     fn test_net_tcp() {
         // Connections may be empty; ensure the file parses without errors
         let entries: Vec<_> = procfs2::proc::net::tcp().collect();
-        assert!(entries.iter().all(|r| r.is_ok()), "TCP entries should parse");
+        assert!(
+            entries.iter().all(|r| r.is_ok()),
+            "TCP entries should parse"
+        );
     }
 
     #[test]
@@ -202,18 +211,27 @@ mod tests {
     #[test]
     fn test_net_udp() {
         let entries: Vec<_> = procfs2::proc::net::udp().collect();
-        assert!(entries.iter().all(|r| r.is_ok()), "UDP entries should parse");
+        assert!(
+            entries.iter().all(|r| r.is_ok()),
+            "UDP entries should parse"
+        );
     }
 
     #[test]
     fn test_net_udp6() {
         let entries: Vec<_> = procfs2::proc::net::udp6().collect();
-        assert!(entries.iter().all(|r| r.is_ok()), "UDP6 entries should parse");
+        assert!(
+            entries.iter().all(|r| r.is_ok()),
+            "UDP6 entries should parse"
+        );
     }
 
     #[test]
     fn test_net_unix() {
         let entries: Vec<_> = procfs2::proc::net::unix().collect();
-        assert!(entries.iter().all(|r| r.is_ok()), "Unix socket entries should parse");
+        assert!(
+            entries.iter().all(|r| r.is_ok()),
+            "Unix socket entries should parse"
+        );
     }
 }

@@ -161,14 +161,20 @@ mod tests {
         let limits = me.limits().expect("Failed to read process limits");
 
         // Open files limit should be a sensible value
-        assert!(limits.max_open_files.soft.is_some(), "open files soft limit should be set");
+        assert!(
+            limits.max_open_files.soft.is_some(),
+            "open files soft limit should be set"
+        );
     }
 
     #[test]
     fn test_live_process_cgroup() {
         let me = Process::current().expect("Failed to get current process");
         let cgroups = me.cgroup().expect("Failed to read process cgroup");
-        assert!(!cgroups.is_empty(), "process should be in at least one cgroup");
+        assert!(
+            !cgroups.is_empty(),
+            "process should be in at least one cgroup"
+        );
     }
 
     #[test]
@@ -196,7 +202,10 @@ mod tests {
 
         if let Some(dev) = devices.first() {
             let stat = dev.stat().expect("Failed to read block device stat");
-            assert!(dev.size().expect("Failed to read device size").0 > 0, "size should be > 0");
+            assert!(
+                dev.size().expect("Failed to read device size").0 > 0,
+                "size should be > 0"
+            );
             assert!(stat.reads_completed > 0 || stat.writes_completed > 0);
         }
     }
@@ -217,9 +226,15 @@ mod tests {
 
         if let Some(iface) = ifaces.first() {
             let stats = iface.stats().expect("Failed to read interface stats");
-            assert!(iface.mtu().expect("Failed to read mtu") > 0, "MTU should be > 0");
             assert!(
-                iface.flags().expect("Failed to read flags").contains(sys::NetIfFlags::UP),
+                iface.mtu().expect("Failed to read mtu") > 0,
+                "MTU should be > 0"
+            );
+            assert!(
+                iface
+                    .flags()
+                    .expect("Failed to read flags")
+                    .contains(sys::NetIfFlags::UP),
                 "interface should be up"
             );
             let _ = stats.rx_bytes.0;

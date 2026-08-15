@@ -94,8 +94,14 @@ fn main() {
         ("Open files", &limits.max_open_files),
     ];
     for (name, limit) in limit_rows {
-        let soft = limit.soft.map(|v| v.to_string()).unwrap_or_else(|| "unlimited".into());
-        let hard = limit.hard.map(|v| v.to_string()).unwrap_or_else(|| "unlimited".into());
+        let soft = limit
+            .soft
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "unlimited".into());
+        let hard = limit
+            .hard
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "unlimited".into());
         println!("  {}: soft={} hard={} {:?}", name, soft, hard, limit.unit);
     }
 

@@ -1,4 +1,5 @@
 pub mod cgroups;
+pub mod cmdline;
 pub mod cpuinfo;
 pub mod loadavg;
 pub mod meminfo;
@@ -8,13 +9,12 @@ pub mod process;
 pub mod stat;
 pub mod uptime;
 pub mod version;
-pub mod cmdline;
 
 pub use cgroups::{CgroupStat, cgroups};
+pub use cmdline::cmdline;
 pub use cpuinfo::{CpuCore, CpuFlag, cpuinfo};
 pub use loadavg::{LoadAvg, loadavg};
 pub use meminfo::MemInfo;
-pub use cmdline::cmdline;
 pub use mounts::{MountEntry, mounts};
 pub use process::Process;
 pub use stat::{CpuTime, PerCpuTime, SystemStat, stat};
