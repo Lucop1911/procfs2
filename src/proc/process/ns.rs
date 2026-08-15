@@ -99,7 +99,7 @@ impl Namespaces {
 /// Namespace targets look like `mnt:[4026531840]`. Returns `None`
 /// if the format doesn't match.
 fn parse_ns_inode(target: &str) -> Option<u64> {
-    let s = target.strip_prefix('[')?;
-    let s = s.strip_suffix(']')?;
+    let start = target.find('[')?;
+    let s = target[start + 1..].strip_suffix(']')?;
     s.parse::<u64>().ok()
 }

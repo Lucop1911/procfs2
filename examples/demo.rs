@@ -49,6 +49,22 @@ fn main() {
     let cmdline = me.cmdline().unwrap();
     println!("Args: {:?}", cmdline);
 
+    println!("\n=== /proc/self/environ (first 5) ===");
+    let environ = me.environ().unwrap();
+    for (key, val) in environ.iter().take(5) {
+        println!("  {}={}", key.to_string_lossy(), val.to_string_lossy());
+    }
+
+    println!("\n=== /proc/self/exe / cwd ===");
+    println!("exe: {:?}", me.exe().unwrap());
+    println!("cwd: {:?}", me.cwd().unwrap());
+
+    println!("\n=== /proc/self/smaps_rollup ===");
+    let rollup = me.smaps_rollup().unwrap();
+    println!("RSS: {} kB", rollup.rss_kb);
+    println!("PSS: {} kB", rollup.pss_kb);
+    println!("Swap: {} kB", rollup.swap_kb);
+
     println!("\n=== /proc/self/maps (first 5) ===");
     let maps = me.maps().unwrap();
     for map in maps.iter().take(5) {
@@ -68,6 +84,24 @@ fn main() {
     println!("\n=== /proc/self/fd (count) ===");
     let fds = me.fds().unwrap();
     println!("Open FDs: {}", fds.len());
+
+    println!("\n=== /proc/self/limits (first 4) ===");
+    let limits = me.limits().unwrap();
+    let limit_rows = [
+        ("CPU time", &limits.max_cpu_time),
+        ("File size", &limits.max_fsize),
+        ("Stack", &limits.max_stack),
+        ("Open files", &limits.max_open_files),
+    ];
+    for (name, limit) in limit_rows {
+        let soft = limit.soft.map(|v| v.to_string()).unwrap_or_else(|| "unlimited".into());
+        let hard = limit.hard.map(|v| v.to_string()).unwrap_or_else(|| "unlimited".into());
+        println!("  {}: soft={} hard={} {:?}", name, soft, hard, limit.unit);
+    }
+
+    println!("\n=== /proc/self/task (threads) ===");
+    let thread_count = me.threads().filter(|r| r.is_ok()).count();
+    println!("Threads: {}", thread_count);
 
     println!("\n=== /proc/self/cgroup ===");
     let cgroups = me.cgroup().unwrap();
@@ -131,6 +165,18 @@ fn main() {
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());
+
+    println!("\n=== /proc/net/tcp6 (count) ===");
+    let tcp6_conns: Vec<_> = proc::net::tcp6().collect();
+    println!("Active TCP6 connections: {}", tcp6_conns.len());
+
+    println!("\n=== /proc/net/udp (count) ===");
+    let udp_socks: Vec<_> = proc::net::udp().collect();
+    println!("UDP sockets: {}", udp_socks.len());
+
+    println!("\n=== /proc/net/udp6 (count) ===");
+    let udp6_socks: Vec<_> = proc::net::udp6().collect();
+    println!("UDP6 sockets: {}", udp6_socks.len());
 
     println!("\n=== /proc/net/dev ===");
     for dev in proc::net::dev().filter_map(|r| r.ok()) {

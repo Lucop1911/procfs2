@@ -142,4 +142,78 @@ mod tests {
             assert!(!arg.is_empty(), "Argument should not be empty");
         }
     }
+
+    #[test]
+    fn test_cgroups() {
+        let cgroups = procfs2::proc::cgroups().expect("Failed to read /proc/cgroups");
+
+        // Every controller should have a name (hierarchy is 0 on
+        // unified cgroup v2 systems)
+        for cg in &cgroups {
+            assert!(!cg.subsys_name.is_empty(), "Controller name should not be empty");
+        }
+    }
+
+    #[test]
+    fn test_mounts() {
+        let mounts = procfs2::proc::mounts().expect("Failed to read /proc/mounts");
+
+        // The root filesystem is always mounted
+        assert!(!mounts.is_empty(), "Should have at least one mount");
+    }
+
+    #[test]
+    fn test_net_dev() {
+        let devices: Vec<_> = procfs2::proc::net::dev().filter_map(|r| r.ok()).collect();
+
+        // The loopback interface should always be present
+        assert!(!devices.is_empty(), "Should have at least one interface");
+    }
+
+    #[test]
+    fn test_net_route() {
+        let routes: Vec<_> = procfs2::proc::net::route().filter_map(|r| r.ok()).collect();
+
+        // At least the default route should exist
+        assert!(!routes.is_empty(), "Should have at least one route");
+    }
+
+    #[test]
+    fn test_net_arp() {
+        // The ARP table may legitimately be empty; just ensure no parse errors
+        let entries: Vec<_> = procfs2::proc::net::arp().collect();
+        assert!(entries.iter().all(|r| r.is_ok()), "ARP entries should parse");
+    }
+
+    #[test]
+    fn test_net_tcp() {
+        // Connections may be empty; ensure the file parses without errors
+        let entries: Vec<_> = procfs2::proc::net::tcp().collect();
+        assert!(entries.iter().all(|r| r.is_ok()), "TCP entries should parse");
+    }
+
+    #[test]
+    fn test_net_tcp6() {
+        // Pure-IPv6 connections yield parse errors by design (documented
+        // limitation), so only assert that collection does not panic.
+        let _ = procfs2::proc::net::tcp6().count();
+    }
+
+    #[test]
+    fn test_net_udp() {
+        let entries: Vec<_> = procfs2::proc::net::udp().collect();
+        assert!(entries.iter().all(|r| r.is_ok()), "UDP entries should parse");
+    }
+
+    #[test]
+    fn test_net_udp6() {
+        let entries: Vec<_> = procfs2::proc::net::udp6().collect();
+        assert!(entries.iter().all(|r| r.is_ok()), "UDP6 entries should parse");
+    }
+
+    #[test]
+    fn test_net_unix() {
+        let entries: Vec<_> = procfs2::proc::net::unix().collect();
+        assert!(entries.iter().all(|r| r.is_ok()), "Unix socket entries should parse");
+    }
 }

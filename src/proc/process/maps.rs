@@ -113,8 +113,6 @@ pub struct MemoryMapDetail {
 /// when only totals are needed.
 #[derive(Debug, Clone)]
 pub struct SmapsRollup {
-    /// Total size of the mapping in kB.
-    pub size_kb: u64,
     /// Resident set size in kB (pages actually in RAM).
     pub rss_kb: u64,
     /// Proportional set size in kB.
@@ -139,7 +137,6 @@ impl SmapsRollup {
     /// Parses a `/proc/PID/smaps_rollup` file from raw bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let mut rollup = SmapsRollup {
-            size_kb: 0,
             rss_kb: 0,
             pss_kb: 0,
             shared_clean_kb: 0,
@@ -157,8 +154,7 @@ impl SmapsRollup {
                 None => continue,
             };
 
-            // Values carry a ` kB` suffix (except for `Size`, `Rss`,
-            // etc. which are plain numbers). Take the first token.
+            // Values carry a ` kB` suffix. Take the first token.
             let val = parse::trim_start(value)
                 .split(|&b| b == b' ' || b == b'\t')
                 .next()
@@ -166,7 +162,6 @@ impl SmapsRollup {
                 .unwrap_or(0);
 
             match key {
-                b"Size" => rollup.size_kb = val,
                 b"Rss" => rollup.rss_kb = val,
                 b"Pss" => rollup.pss_kb = val,
                 b"Shared_Clean" => rollup.shared_clean_kb = val,
