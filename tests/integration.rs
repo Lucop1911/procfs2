@@ -200,14 +200,16 @@ mod tests {
         let devices: Vec<_> = sys::BlockDevice::all().filter_map(|r| r.ok()).collect();
         assert!(!devices.is_empty(), "Should have at least one block device");
 
-        if let Some(dev) = devices.first() {
-            let stat = dev.stat().expect("Failed to read block device stat");
-            assert!(
-                dev.size().expect("Failed to read device size").0 > 0,
-                "size should be > 0"
-            );
-            assert!(stat.reads_completed > 0 || stat.writes_completed > 0);
-        }
+        // Skip devices that report a size of 0 (e.g. unbound loop devices
+        // on CI runners), which may appear before the real disk.
+        let dev = devices
+            .iter()
+            .find(|dev| dev.size().map(|s| s.0 > 0).unwrap_or(false))
+            .expect("Should have a block device with a nonzero size");
+
+        let stat = dev.stat().expect("Failed to read block device stat");
+        assert!(dev.size().expect("Failed to read device size").0 > 0);
+        assert!(stat.reads_completed > 0 || stat.writes_completed > 0);
     }
 
     #[test]
