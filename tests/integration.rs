@@ -6,7 +6,9 @@
 
 #[cfg(test)]
 mod tests {
-    use procfs2::proc::{Process, cpuinfo, loadavg, meminfo, stat, uptime, version};
+    use procfs2::proc::{
+        DeviceKind, Process, cpuinfo, devices, loadavg, meminfo, stat, uptime, version,
+    };
     use procfs2::sys;
 
     #[test]
@@ -193,6 +195,47 @@ mod tests {
         let me = Process::current().expect("Failed to get current process");
         let count = me.threads().filter(|r| r.is_ok()).count();
         assert!(count >= 1, "process should have at least one thread");
+    }
+
+    #[test]
+    fn test_live_devices() {
+        let devices = devices().expect("Failed to read /proc/devices");
+
+        // Every kernel registers at least one device
+        assert!(!devices.is_empty(), "Should have at least one device");
+        assert!(
+            devices.iter().any(|d| d.major > 0),
+            "Device major numbers should be > 0"
+        );
+    }
+
+    #[test]
+    fn test_live_devices_both_kinds() {
+        let devices = devices().expect("Failed to read /proc/devices");
+
+        // Both character and block devices should be registered
+        assert!(
+            devices.iter().any(|d| d.kind == DeviceKind::Character),
+            "Should have at least one character device"
+        );
+        assert!(
+            devices.iter().any(|d| d.kind == DeviceKind::Block),
+            "Should have at least one block device"
+        );
+    }
+
+    #[test]
+    fn test_live_devices_names() {
+        let devices = devices().expect("Failed to read /proc/devices");
+
+        // Names are single whitespace-free tokens
+        for d in &devices {
+            assert!(!d.name.is_empty(), "Device name should not be empty");
+            assert!(
+                !d.name.contains(' '),
+                "Device name should not contain spaces"
+            );
+        }
     }
 
     #[test]

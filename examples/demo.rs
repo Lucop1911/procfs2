@@ -168,6 +168,12 @@ fn main() {
         );
     }
 
+    println!("\n=== /proc/devices ===");
+    let devices = proc::devices().unwrap();
+    for dev in &devices {
+        println!("  [{:3}] {:?}: {}", dev.major, dev.kind, dev.name);
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());

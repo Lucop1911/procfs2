@@ -1,6 +1,7 @@
 pub mod cgroups;
 pub mod cmdline;
 pub mod cpuinfo;
+pub mod devices;
 pub mod loadavg;
 pub mod meminfo;
 pub mod mounts;
@@ -13,6 +14,7 @@ pub mod version;
 pub use cgroups::{CgroupStat, cgroups};
 pub use cmdline::cmdline;
 pub use cpuinfo::{CpuCore, CpuFlag, cpuinfo};
+pub use devices::{Device, DeviceKind, devices};
 pub use loadavg::{LoadAvg, loadavg};
 pub use meminfo::MemInfo;
 pub use mounts::{MountEntry, mounts};
