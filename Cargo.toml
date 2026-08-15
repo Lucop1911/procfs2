@@ -27,6 +27,7 @@ harness = false
 
 [dev-dependencies]
 criterion = "0.8.2"
+procfs = "0.18.0"
 
 [features]
 default = []

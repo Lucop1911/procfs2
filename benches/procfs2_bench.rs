@@ -2,73 +2,133 @@
 extern crate criterion;
 
 use criterion::Criterion;
+use procfs::prelude::*;
 use procfs2::proc;
 
 fn bench_proc_uptime(c: &mut Criterion) {
-    c.bench_function("proc::uptime", |b| {
+    let mut group = c.benchmark_group("proc::uptime");
+    group.bench_function("procfs2", |b| {
         b.iter(|| {
             let _ = std::hint::black_box(proc::uptime());
         })
     });
+    group.bench_function("procfs", |b| {
+        b.iter(|| {
+            let _ = std::hint::black_box(procfs::Uptime::current());
+        })
+    });
+    group.finish();
 }
 
 fn bench_proc_loadavg(c: &mut Criterion) {
-    c.bench_function("proc::loadavg", |b| {
+    let mut group = c.benchmark_group("proc::loadavg");
+    group.bench_function("procfs2", |b| {
         b.iter(|| {
             let _ = std::hint::black_box(proc::loadavg());
         })
     });
+    group.bench_function("procfs", |b| {
+        b.iter(|| {
+            let _ = std::hint::black_box(procfs::LoadAverage::current());
+        })
+    });
+    group.finish();
 }
 
 fn bench_proc_stat(c: &mut Criterion) {
-    c.bench_function("proc::stat", |b| {
+    let mut group = c.benchmark_group("proc::stat");
+    group.bench_function("procfs2", |b| {
         b.iter(|| {
             let _ = std::hint::black_box(proc::stat());
         })
     });
+    group.bench_function("procfs", |b| {
+        b.iter(|| {
+            let _ = std::hint::black_box(procfs::KernelStats::current());
+        })
+    });
+    group.finish();
 }
 
 fn bench_proc_cpuinfo(c: &mut Criterion) {
-    c.bench_function("proc::cpuinfo", |b| {
+    let mut group = c.benchmark_group("proc::cpuinfo");
+    group.bench_function("procfs2", |b| {
         b.iter(|| {
             let _ = std::hint::black_box(proc::cpuinfo());
         })
     });
+    group.bench_function("procfs", |b| {
+        b.iter(|| {
+            let _ = std::hint::black_box(procfs::CpuInfo::current());
+        })
+    });
+    group.finish();
 }
 
 fn bench_proc_meminfo(c: &mut Criterion) {
-    c.bench_function("proc::meminfo", |b| {
+    let mut group = c.benchmark_group("proc::meminfo");
+    group.bench_function("procfs2", |b| {
         b.iter(|| {
             let _ = std::hint::black_box(proc::meminfo());
         })
     });
+    group.bench_function("procfs", |b| {
+        b.iter(|| {
+            let _ = std::hint::black_box(procfs::Meminfo::current());
+        })
+    });
+    group.finish();
 }
 
 fn bench_proc_process_stat(c: &mut Criterion) {
-    let p = proc::Process::current().unwrap();
-    c.bench_function("Process::stat", |b| {
+    let p2 = proc::Process::current().unwrap();
+    let p0 = procfs::process::Process::myself().unwrap();
+    let mut group = c.benchmark_group("Process::stat");
+    group.bench_function("procfs2", |b| {
         b.iter(|| {
-            let _ = std::hint::black_box(p.stat());
+            let _ = std::hint::black_box(p2.stat());
         })
     });
+    group.bench_function("procfs", |b| {
+        b.iter(|| {
+            let _ = std::hint::black_box(p0.stat());
+        })
+    });
+    group.finish();
 }
 
 fn bench_proc_process_status(c: &mut Criterion) {
-    let p = proc::Process::current().unwrap();
-    c.bench_function("Process::status", |b| {
+    let p2 = proc::Process::current().unwrap();
+    let p0 = procfs::process::Process::myself().unwrap();
+    let mut group = c.benchmark_group("Process::status");
+    group.bench_function("procfs2", |b| {
         b.iter(|| {
-            let _ = std::hint::black_box(p.status());
+            let _ = std::hint::black_box(p2.status());
         })
     });
+    group.bench_function("procfs", |b| {
+        b.iter(|| {
+            let _ = std::hint::black_box(p0.status());
+        })
+    });
+    group.finish();
 }
 
 fn bench_proc_maps(c: &mut Criterion) {
-    let p = proc::Process::current().unwrap();
-    c.bench_function("Process::maps", |b| {
+    let p2 = proc::Process::current().unwrap();
+    let p0 = procfs::process::Process::myself().unwrap();
+    let mut group = c.benchmark_group("Process::maps");
+    group.bench_function("procfs2", |b| {
         b.iter(|| {
-            let _ = std::hint::black_box(p.maps());
+            let _ = std::hint::black_box(p2.maps());
         })
     });
+    group.bench_function("procfs", |b| {
+        b.iter(|| {
+            let _ = std::hint::black_box(p0.maps());
+        })
+    });
+    group.finish();
 }
 
 fn bench_sys_block_stat(c: &mut Criterion) {
@@ -76,11 +136,13 @@ fn bench_sys_block_stat(c: &mut Criterion) {
         .filter_map(|r| r.ok())
         .collect();
     if let Some(dev) = devices.first() {
-        c.bench_function("sys::BlockDevice::stat", |b| {
+        let mut group = c.benchmark_group("sys::BlockDevice::stat");
+        group.bench_function("procfs2", |b| {
             b.iter(|| {
                 let _ = std::hint::black_box(dev.stat());
             })
         });
+        group.finish();
     }
 }
 
@@ -89,11 +151,13 @@ fn bench_sys_net_stats(c: &mut Criterion) {
         .filter_map(|r| r.ok())
         .collect();
     if let Some(iface) = ifaces.first() {
-        c.bench_function("sys::NetInterface::stats", |b| {
+        let mut group = c.benchmark_group("sys::NetInterface::stats");
+        group.bench_function("procfs2", |b| {
             b.iter(|| {
                 let _ = std::hint::black_box(iface.stats());
             })
         });
+        group.finish();
     }
 }
 
