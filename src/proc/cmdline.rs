@@ -14,16 +14,8 @@ use crate::util::parse;
 /// strips the quote characters, matching the bootloader's intent.
 pub fn cmdline() -> Result<Vec<String>> {
     let bytes = parse::read_file(std::path::Path::new("/proc/cmdline"))?;
-    Ok(parse_cmdline(parse::trim_end(&bytes)))
-}
+    let bytes = parse::trim_end(&bytes);
 
-/// Splits a boot command line into arguments.
-///
-/// Whitespace separates arguments unless it appears inside a `"` or
-/// `'` quoted section. A backslash escapes the following character.
-/// An unterminated quote is not an error: the rest of the line is
-/// treated as a single argument.
-fn parse_cmdline(bytes: &[u8]) -> Vec<String> {
     let mut args = Vec::new();
     let mut cur = Vec::new();
     let mut in_quote = false;
@@ -51,5 +43,5 @@ fn parse_cmdline(bytes: &[u8]) -> Vec<String> {
         args.push(String::from_utf8_lossy(&cur).into_owned());
     }
 
-    args
+    Ok(args)
 }
