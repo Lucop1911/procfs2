@@ -9,6 +9,7 @@ pub mod mounts;
 pub mod net;
 pub mod process;
 pub mod stat;
+pub mod swaps;
 pub mod uptime;
 pub mod version;
 
@@ -22,6 +23,7 @@ pub use meminfo::MemInfo;
 pub use mounts::{MountEntry, mounts};
 pub use process::Process;
 pub use stat::{CpuTime, PerCpuTime, SystemStat, stat};
+pub use swaps::{Swap, SwapType, swaps};
 pub use uptime::{Uptime, uptime};
 pub use version::version;
 

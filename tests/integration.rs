@@ -7,7 +7,8 @@
 #[cfg(test)]
 mod tests {
     use procfs2::proc::{
-        DeviceKind, Process, cpuinfo, devices, filesystems, loadavg, meminfo, stat, uptime, version,
+        DeviceKind, Process, cpuinfo, devices, filesystems, loadavg, meminfo, stat, swaps, uptime,
+        version,
     };
     use procfs2::sys;
 
@@ -280,6 +281,31 @@ mod tests {
                 !f.name.contains('\t'),
                 "Filesystem name should not contain tabs"
             );
+        }
+    }
+
+    #[test]
+    fn test_live_swaps() {
+        let swaps = swaps().expect("Failed to read /proc/swaps");
+
+        // Swap areas may be absent (e.g. VMs), so don't require any.
+        for s in &swaps {
+            assert!(!s.filename.is_empty(), "Filename should not be empty");
+            assert!(s.size.0 > 0, "Swap size should be > 0");
+            assert!(s.used.0 <= s.size.0, "Used should not exceed size");
+        }
+    }
+
+    #[test]
+    fn test_live_swaps_fields() {
+        let swaps = swaps().expect("Failed to read /proc/swaps");
+
+        // Every entry has a valid type and a numeric priority.
+        for s in &swaps {
+            match s.kind {
+                procfs2::proc::SwapType::Partition | procfs2::proc::SwapType::File => {}
+            }
+            let _ = s.priority;
         }
     }
 

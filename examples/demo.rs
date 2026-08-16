@@ -180,6 +180,18 @@ fn main() {
         println!("  [{}] {}", if fs.dev { "dev" } else { "nodev" }, fs.name);
     }
 
+    println!("\n=== /proc/swaps ===");
+    let swaps = proc::swaps().unwrap();
+    if swaps.is_empty() {
+        println!("  (none configured)");
+    }
+    for s in &swaps {
+        println!(
+            "  {:?}: {} used / {} KiB, priority {}",
+            s.kind, s.used.0, s.size.0, s.priority
+        );
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());
