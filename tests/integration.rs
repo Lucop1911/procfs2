@@ -7,8 +7,8 @@
 #[cfg(test)]
 mod tests {
     use procfs2::proc::{
-        DeviceKind, Process, cpuinfo, devices, filesystems, loadavg, meminfo, stat, swaps, uptime,
-        version,
+        DeviceKind, Process, cpuinfo, devices, filesystems, loadavg, meminfo, partitions, stat,
+        swaps, uptime, version,
     };
     use procfs2::sys;
 
@@ -306,6 +306,33 @@ mod tests {
                 procfs2::proc::SwapType::Partition | procfs2::proc::SwapType::File => {}
             }
             let _ = s.priority;
+        }
+    }
+
+    #[test]
+    fn test_live_partitions() {
+        let partitions = partitions().expect("Failed to read /proc/partitions");
+
+        // Every system has at least one block device / partition
+        assert!(!partitions.is_empty(), "Should have at least one partition");
+        for p in &partitions {
+            assert!(!p.name.is_empty(), "Partition name should not be empty");
+            assert!(p.blocks.0 > 0, "Partition blocks should be > 0");
+        }
+    }
+
+    #[test]
+    fn test_live_partitions_fields() {
+        let partitions = partitions().expect("Failed to read /proc/partitions");
+
+        // Every entry has a positive major number and a whitespace-free name
+        for p in &partitions {
+            assert!(p.major > 0, "Major number should be > 0");
+            assert!(
+                !p.name.contains(' '),
+                "Partition name should not contain spaces"
+            );
+            let _ = p.minor;
         }
     }
 

@@ -192,6 +192,15 @@ fn main() {
         );
     }
 
+    println!("\n=== /proc/partitions ===");
+    let partitions = proc::partitions().unwrap();
+    for p in &partitions {
+        println!(
+            "  {:3}:{:3} {:>10} KiB {}",
+            p.major, p.minor, p.blocks.0, p.name
+        );
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());
