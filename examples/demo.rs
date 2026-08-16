@@ -201,6 +201,32 @@ fn main() {
         );
     }
 
+    println!("\n=== /proc/diskstats ===");
+    let diskstats = proc::diskstats().unwrap();
+    for s in &diskstats {
+        println!("  {:3}:{:3} {}", s.major, s.minor, s.name);
+        println!(
+            "    reads: {} completed, {} merged, {} sectors, {} ms",
+            s.reads_completed, s.reads_merged, s.sectors_read, s.time_reading.0
+        );
+        println!(
+            "    writes: {} completed, {} merged, {} sectors, {} ms",
+            s.writes_completed, s.writes_merged, s.sectors_written, s.time_writing.0
+        );
+        println!(
+            "    I/O: {} in flight, {} ms, {} ms weighted",
+            s.io_in_progress, s.time_io.0, s.weighted_time_io.0
+        );
+        println!(
+            "    discards: {} completed, {} merged, {} sectors, {} ms",
+            s.discards_completed, s.discards_merged, s.sectors_discarded, s.time_discarding.0
+        );
+        println!(
+            "    flush: {} completed, {} ms",
+            s.flush_completed, s.time_flushing.0
+        );
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());

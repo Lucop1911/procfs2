@@ -7,8 +7,8 @@
 #[cfg(test)]
 mod tests {
     use procfs2::proc::{
-        DeviceKind, Process, cpuinfo, devices, filesystems, loadavg, meminfo, partitions, stat,
-        swaps, uptime, version,
+        DeviceKind, Process, cpuinfo, devices, diskstats, filesystems, loadavg, meminfo,
+        partitions, stat, swaps, uptime, version,
     };
     use procfs2::sys;
 
@@ -333,6 +333,57 @@ mod tests {
                 "Partition name should not contain spaces"
             );
             let _ = p.minor;
+        }
+    }
+
+    #[test]
+    fn test_live_diskstats() {
+        let stats = diskstats().expect("Failed to read /proc/diskstats");
+
+        // Every block device and partition is listed alongside its whole disk
+        assert!(!stats.is_empty(), "Should have at least one disk entry");
+        for s in &stats {
+            assert!(!s.name.is_empty(), "Device name should not be empty");
+            assert!(
+                !s.name.contains(' '),
+                "Device name should not contain spaces"
+            );
+            assert!(s.major > 0, "Major number should be > 0");
+            let _ = s.minor;
+        }
+    }
+
+    #[test]
+    fn test_live_diskstats_io() {
+        let stats = diskstats().expect("Failed to read /proc/diskstats");
+
+        // Every entry must have all counters present.
+        for s in &stats {
+            let _ = s.reads_completed;
+            let _ = s.writes_completed;
+            let _ = s.sectors_read;
+            let _ = s.sectors_written;
+        }
+
+        // The whole-disk entry (e.g. sda, nvme0n1) must have done some I/O.
+        assert!(
+            stats
+                .iter()
+                .any(|s| s.reads_completed > 0 || s.writes_completed > 0),
+            "Should have at least one device with I/O stats"
+        );
+    }
+
+    #[test]
+    fn test_live_diskstats_flush_fields() {
+        let stats = diskstats().expect("Failed to read /proc/diskstats");
+
+        // Modern kernels (5.5+) always emit the flush fields. Whole-disk
+        // entries track flush requests, so they should have a value.
+        for s in &stats {
+            let _ = s.flush_completed;
+            let _ = s.time_flushing;
+            let _ = s.io_in_progress;
         }
     }
 
