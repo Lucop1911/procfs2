@@ -200,6 +200,25 @@ impl KernelVersion {
     pub fn at_least(&self, major: u32, minor: u32) -> bool {
         self.major > major || (self.major == major && self.minor >= minor)
     }
+
+    /// Fails with [`Error::UnsupportedKernel`] unless the running
+    /// kernel is at least `major.minor`.
+    ///
+    /// Patch level is intentionally ignored, matching [`Self::at_least`].
+    pub fn require(&self, major: u32, minor: u32) -> Result<()> {
+        if self.at_least(major, minor) {
+            Ok(())
+        } else {
+            Err(Error::UnsupportedKernel {
+                required: KernelVersion {
+                    major,
+                    minor,
+                    patch: 0,
+                },
+                found: self.clone(),
+            })
+        }
+    }
 }
 
 /// Alias for `std::result::Result<T, Error>`.

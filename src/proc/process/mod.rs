@@ -19,7 +19,7 @@ pub use ns::Namespaces;
 pub use stat::ProcessStat;
 pub use status::{Gids, ProcessState, ProcessStatus, Uids};
 
-use crate::error::{Error, Result};
+use crate::error::{Error, KernelVersion, Result};
 use std::os::unix::ffi::OsStrExt;
 
 /// A handle to a running process, identified by its PID.
@@ -242,7 +242,11 @@ impl Process {
     /// A single aggregate memory summary (RSS, PSS, shared/private,
     /// swap, ...). Much smaller and faster to parse than the full
     /// `/proc/PID/smaps`, at the cost of losing per-region details.
+    ///
+    /// Requires kernel 4.14 or newer; on older kernels this returns
+    /// [`Error::UnsupportedKernel`].
     pub fn smaps_rollup(&self) -> Result<SmapsRollup> {
+        KernelVersion::current()?.require(4, 14)?;
         let path = format!("/proc/{}/smaps_rollup", self.pid);
         let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
         SmapsRollup::from_bytes(&bytes)
