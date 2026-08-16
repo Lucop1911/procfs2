@@ -7,7 +7,7 @@
 #[cfg(test)]
 mod tests {
     use procfs2::proc::{
-        DeviceKind, Process, cpuinfo, devices, loadavg, meminfo, stat, uptime, version,
+        DeviceKind, Process, cpuinfo, devices, filesystems, loadavg, meminfo, stat, uptime, version,
     };
     use procfs2::sys;
 
@@ -234,6 +234,51 @@ mod tests {
             assert!(
                 !d.name.contains(' '),
                 "Device name should not contain spaces"
+            );
+        }
+    }
+
+    #[test]
+    fn test_live_filesystems() {
+        let fs_list = filesystems().expect("Failed to read /proc/filesystems");
+
+        // Every kernel supports proc, tmpfs and at least one disk fs
+        assert!(!fs_list.is_empty(), "Should have at least one filesystem");
+        assert!(
+            fs_list.iter().any(|f| f.name.as_ref() == "proc"),
+            "proc filesystem should be listed"
+        );
+        assert!(
+            fs_list.iter().any(|f| f.name.as_ref() == "tmpfs"),
+            "tmpfs filesystem should be listed"
+        );
+    }
+
+    #[test]
+    fn test_live_filesystems_both_kinds() {
+        let fs_list = filesystems().expect("Failed to read /proc/filesystems");
+
+        // Pseudo-filesystems (nodev) and device-backed filesystems exist
+        assert!(
+            fs_list.iter().any(|f| !f.dev),
+            "Should have at least one nodev filesystem"
+        );
+        assert!(
+            fs_list.iter().any(|f| f.dev),
+            "Should have at least one device-backed filesystem"
+        );
+    }
+
+    #[test]
+    fn test_live_filesystems_names() {
+        let fs_list = filesystems().expect("Failed to read /proc/filesystems");
+
+        // Names are non-empty and free of tabs
+        for f in &fs_list {
+            assert!(!f.name.is_empty(), "Filesystem name should not be empty");
+            assert!(
+                !f.name.contains('\t'),
+                "Filesystem name should not contain tabs"
             );
         }
     }

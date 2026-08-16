@@ -174,6 +174,12 @@ fn main() {
         println!("  [{:3}] {:?}: {}", dev.major, dev.kind, dev.name);
     }
 
+    println!("\n=== /proc/filesystems ===");
+    let fs_list = proc::filesystems().unwrap();
+    for fs in &fs_list {
+        println!("  [{}] {}", if fs.dev { "dev" } else { "nodev" }, fs.name);
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());

@@ -2,7 +2,7 @@
 
 - [ x ] `/proc/cmdline` — kernel command line. Space-separated boot parameters. Trivial split on spaces.
 - [ x ] `/proc/devices` — character and block device major numbers. Two sections, `Character devices:` / `Block devices:`, lines are `<major> <name>`.
-- [ ] `/proc/filesystems` — registered filesystems. Lines optionally prefixed by `nodev `, then `<fsname>`.
+- [ x ] `/proc/filesystems` — registered filesystems. Lines are `<flag>\t<fsname>` where flag is `nodev` (no block device) or empty.
 - [ ] `/proc/swaps` — swap devices. Header + lines: `Filename  Type  Size  Used  Priority`.
 - [ ] `/proc/partitions` — partition table. Header + lines: `major  minor  #blocks  name`.
 - [ ] `/proc/diskstats` — per-disk I/O statistics. Fixed 18-field layout (documented in kernel docs `iostats.txt`).
@@ -86,7 +86,7 @@ Mirror of the per-process files above. Only needed if thread-level accessors are
 
 ## Already implemented
 
-- `cgroups`, `cpuinfo`, `loadavg`, `meminfo`, `mounts`, `stat`, `uptime`, `version`
+- `cgroups`, `cpuinfo`, `devices`, `filesystems`, `loadavg`, `meminfo`, `mounts`, `stat`, `uptime`, `version`
 - `net/{arp,dev,route,tcp,tcp6,udp,udp6,unix}`
 - per-process: `stat`, `status`, `cmdline`, `environ`, `exe`, `cwd`, `maps`, `smaps`,
   `smaps_rollup`, `fd`, `io`, `limits`, `mountinfo`, `cgroup`, `ns`, `task` (thread enumeration)
