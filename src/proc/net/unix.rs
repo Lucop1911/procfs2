@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::error::{Error, Result};
 use crate::util::parse;
 
@@ -36,8 +38,8 @@ pub struct UnixEntry {
 /// ```
 /// All numeric fields except `Inode` are hexadecimal. `Inode` is decimal.
 pub fn unix() -> impl Iterator<Item = Result<UnixEntry>> {
-    let path = "/proc/net/unix";
-    let bytes = match parse::read_file(std::path::Path::new(path)) {
+    let path = Path::new("/proc/net/unix");
+    let bytes = match parse::read_file(path) {
         Ok(b) => b,
         Err(e) => return vec![Err(e)].into_iter(),
     };

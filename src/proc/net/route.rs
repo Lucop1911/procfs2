@@ -1,4 +1,5 @@
 use std::net::Ipv4Addr;
+use std::path::Path;
 
 use crate::error::{Error, Result};
 use crate::util::parse;
@@ -43,8 +44,8 @@ pub struct RouteEntry {
 /// ```
 /// Addresses are stored in little-endian hex (same as `/proc/net/tcp`).
 pub fn route() -> impl Iterator<Item = Result<RouteEntry>> {
-    let path = "/proc/net/route";
-    let bytes = match parse::read_file(std::path::Path::new(path)) {
+    let path = Path::new("/proc/net/route");
+    let bytes = match parse::read_file(path) {
         Ok(b) => b,
         Err(e) => return vec![Err(e)].into_iter(),
     };

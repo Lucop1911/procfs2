@@ -1,4 +1,5 @@
 use std::net::Ipv4Addr;
+use std::path::Path;
 
 use crate::error::{Error, Result};
 use crate::util::parse;
@@ -29,8 +30,8 @@ pub struct ArpEntry {
 /// 192.168.1.1      0x1        0x2      aa:bb:cc:dd:ee:ff     *       eth0
 /// ```
 pub fn arp() -> impl Iterator<Item = Result<ArpEntry>> {
-    let path = "/proc/net/arp";
-    let bytes = match parse::read_file(std::path::Path::new(path)) {
+    let path = Path::new("/proc/net/arp");
+    let bytes = match parse::read_file(path) {
         Ok(b) => b,
         Err(e) => return vec![Err(e)].into_iter(),
     };

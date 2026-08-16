@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::time::Duration;
 
 use crate::error::{Error, Result};
@@ -21,7 +22,8 @@ pub struct Uptime {
 
 /// Reads `/proc/uptime` and returns [`Uptime`].
 pub fn uptime() -> Result<Uptime> {
-    let bytes = parse::read_file(std::path::Path::new("/proc/uptime"))?;
+    let path = Path::new("/proc/uptime");
+    let bytes = parse::read_file(path)?;
 
     let space_idx = parse::memchr(b' ', &bytes).ok_or_else(|| Error::Parse {
         path: std::path::PathBuf::from("/proc/uptime"),

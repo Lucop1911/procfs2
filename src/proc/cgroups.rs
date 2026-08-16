@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::error::{Error, Result};
 use crate::util::parse;
 
@@ -28,8 +30,8 @@ pub struct CgroupStat {
 /// memory  4       42      1
 /// ```
 pub fn cgroups() -> Result<Vec<CgroupStat>> {
-    let path = "/proc/cgroups";
-    let bytes = parse::read_file(std::path::Path::new(path))?;
+    let path = Path::new("/proc/cgroups");
+    let bytes = parse::read_file(path)?;
 
     let mut entries = Vec::new();
 

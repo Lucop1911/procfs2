@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::error::{Error, Result};
 use crate::util::Bytes;
 use crate::util::parse;
@@ -55,8 +57,8 @@ pub struct NetDevStat {
 /// Interface names are followed by a colon and may have leading
 /// whitespace for alignment.
 pub fn dev() -> impl Iterator<Item = Result<NetDevStat>> {
-    let path = "/proc/net/dev";
-    let bytes = match parse::read_file(std::path::Path::new(path)) {
+    let path = Path::new("/proc/net/dev");
+    let bytes = match parse::read_file(path) {
         Ok(b) => b,
         Err(e) => return vec![Err(e)].into_iter(),
     };

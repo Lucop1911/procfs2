@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::error::{Error, Result};
 use crate::util::parse;
 
@@ -34,8 +36,8 @@ pub struct MountEntry {
 /// characters (spaces, tabs, newlines, backslashes) in paths are
 /// decoded.
 pub fn mounts() -> Result<Vec<MountEntry>> {
-    let path = "/proc/mounts";
-    let bytes = parse::read_file(std::path::Path::new(path))?;
+    let path = Path::new("/proc/mounts");
+    let bytes = parse::read_file(path)?;
 
     let mut entries = Vec::new();
 
