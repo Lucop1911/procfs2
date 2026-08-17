@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::error::{Error, Result};
 use crate::util::parse;
 
@@ -172,7 +174,7 @@ fn build_cpu_core(fields: &[(Box<str>, Box<str>)]) -> CpuCore {
 /// key-value pairs (`key : value`).
 pub fn cpuinfo() -> Result<Vec<CpuCore>> {
     let bytes = parse::read_file(std::path::Path::new("/proc/cpuinfo"))?;
-    let path = std::path::PathBuf::from("/proc/cpuinfo");
+    let path = Path::new("/proc/cpuinfo");
 
     let mut cores = Vec::new();
     let mut current_fields: Vec<(Box<str>, Box<str>)> = Vec::new();
@@ -187,14 +189,14 @@ pub fn cpuinfo() -> Result<Vec<CpuCore>> {
         }
 
         let (key, value) = parse::parse_key_value_line(line).ok_or_else(|| Error::Parse {
-            path: path.clone(),
+            path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid key-value line",
         })?;
 
         let key_str = std::str::from_utf8(key)
             .map_err(|_| Error::Parse {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 line: line_num + 1,
                 msg: "invalid utf8 in key",
             })?
@@ -203,7 +205,7 @@ pub fn cpuinfo() -> Result<Vec<CpuCore>> {
 
         let value_str = std::str::from_utf8(value)
             .map_err(|_| Error::Parse {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 line: line_num + 1,
                 msg: "invalid utf8 in value",
             })?
@@ -219,7 +221,7 @@ pub fn cpuinfo() -> Result<Vec<CpuCore>> {
 
     if cores.is_empty() {
         return Err(Error::Parse {
-            path,
+            path: path.to_path_buf(),
             line: 0,
             msg: "no CPU cores found",
         });
