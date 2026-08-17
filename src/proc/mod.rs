@@ -15,6 +15,7 @@ pub mod swaps;
 pub mod uptime;
 pub mod version;
 pub mod vmstat;
+pub mod zoneinfo;
 
 pub use cgroups::{CgroupStat, cgroups};
 pub use cmdline::cmdline;
@@ -32,6 +33,7 @@ pub use swaps::{Swap, SwapType, swaps};
 pub use uptime::{Uptime, uptime};
 pub use version::version;
 pub use vmstat::vmstat;
+pub use zoneinfo::{Pcp, ZoneInfo, ZonePages, zoneinfo};
 
 /// Reads `/proc/meminfo` and returns system-wide memory statistics.
 ///

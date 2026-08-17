@@ -8,7 +8,7 @@
 mod tests {
     use procfs2::proc::{
         DeviceKind, Process, cpuinfo, devices, diskstats, filesystems, loadavg, meminfo,
-        partitions, stat, swaps, uptime, version, vmstat,
+        partitions, stat, swaps, uptime, version, vmstat, zoneinfo,
     };
     use procfs2::sys;
 
@@ -420,6 +420,61 @@ mod tests {
             vmstat.get("nr_free_pages").is_some_and(|&v| v > 0),
             "nr_free_pages should be > 0"
         );
+    }
+
+    #[test]
+    fn test_live_zoneinfo() {
+        let zones = zoneinfo().expect("Failed to read /proc/zoneinfo");
+
+        // Every kernel has at least one memory zone; the Normal zone is
+        // always populated on 64-bit systems.
+        assert!(!zones.is_empty(), "Should have at least one zone");
+        let normal = zones
+            .iter()
+            .find(|z| z.name.as_ref() == "Normal")
+            .expect("Should have a Normal zone");
+        assert!(normal.pages.present > 0, "Normal zone should be populated");
+        assert!(
+            !normal.protection.is_empty(),
+            "Normal zone should have protection values"
+        );
+        assert!(
+            normal.stats.contains_key("nr_free_pages"),
+            "Normal zone should have nr_free_pages"
+        );
+    }
+
+    #[test]
+    fn test_live_zoneinfo_fields() {
+        let zones = zoneinfo().expect("Failed to read /proc/zoneinfo");
+
+        // Every zone has a non-empty name; populated zones (managed > 0)
+        // must have their `free` page count match the per-zone counter.
+        for z in &zones {
+            assert!(!z.name.is_empty(), "Zone name should not be empty");
+            if z.pages.managed > 0 {
+                assert_eq!(
+                    z.pages.free,
+                    z.stats.get("nr_free_pages").copied().unwrap_or(0),
+                    "free pages should match nr_free_pages for {}",
+                    z.name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_live_zoneinfo_pagesets() {
+        let zones = zoneinfo().expect("Failed to read /proc/zoneinfo");
+
+        // Every populated zone has one pageset per online CPU, with
+        // ascending CPU ids starting at 0.
+        for z in zones.iter().filter(|z| z.pages.managed > 0) {
+            assert!(!z.pagesets.is_empty(), "{} should have pagesets", z.name);
+            for (i, pcp) in z.pagesets.iter().enumerate() {
+                assert_eq!(pcp.cpu, i as u32, "{} pageset CPU ids", z.name);
+            }
+        }
     }
 
     #[test]

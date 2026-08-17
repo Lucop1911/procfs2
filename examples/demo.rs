@@ -244,6 +244,31 @@ fn main() {
         }
     }
 
+    println!("\n=== /proc/zoneinfo ===");
+    let zones = proc::zoneinfo().unwrap();
+    for z in &zones {
+        println!(
+            "  node {} zone {:8} free={:<10} present={:<10} managed={:<10} stats={} pagesets={} protection={:?}",
+            z.node,
+            z.name,
+            z.pages.free,
+            z.pages.present,
+            z.pages.managed,
+            z.stats.len(),
+            z.pagesets.len(),
+            z.protection
+        );
+        if z.name.as_ref() == "Normal" {
+            println!(
+                "    watermarks: min={} low={} high={} promo={}",
+                z.pages.min, z.pages.low, z.pages.high, z.pages.promo
+            );
+            if let Some(hit) = z.stats.get("numa_hit") {
+                println!("    numa_hit: {}", hit);
+            }
+        }
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());
