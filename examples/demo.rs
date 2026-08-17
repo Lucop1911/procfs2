@@ -227,6 +227,23 @@ fn main() {
         );
     }
 
+    println!("\n=== /proc/vmstat (notable counters) ===");
+    let vmstat = proc::vmstat().unwrap();
+    println!("Total counters: {}", vmstat.len());
+    for key in [
+        "nr_free_pages",
+        "nr_dirty",
+        "pgpgin",
+        "pgpgout",
+        "pswpin",
+        "pswpout",
+        "oom_kill",
+    ] {
+        if let Some(value) = vmstat.get(key) {
+            println!("  {}: {}", key, value);
+        }
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());

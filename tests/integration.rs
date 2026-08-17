@@ -8,7 +8,7 @@
 mod tests {
     use procfs2::proc::{
         DeviceKind, Process, cpuinfo, devices, diskstats, filesystems, loadavg, meminfo,
-        partitions, stat, swaps, uptime, version,
+        partitions, stat, swaps, uptime, version, vmstat,
     };
     use procfs2::sys;
 
@@ -385,6 +385,41 @@ mod tests {
             let _ = s.time_flushing;
             let _ = s.io_in_progress;
         }
+    }
+
+    #[test]
+    fn test_live_vmstat() {
+        let vmstat = vmstat().expect("Failed to read /proc/vmstat");
+
+        // The file holds well over a hundred counters on modern kernels,
+        // including the long-stable zone and event counters below.
+        assert!(vmstat.len() > 50, "Should have many vmstat counters");
+        for key in ["nr_free_pages", "nr_dirty", "pgpgin", "pgfault", "oom_kill"] {
+            assert!(vmstat.contains_key(key), "vmstat should contain {key}");
+        }
+    }
+
+    #[test]
+    fn test_live_vmstat_values() {
+        let vmstat = vmstat().expect("Failed to read /proc/vmstat");
+
+        // Keys are single whitespace-free tokens and every value is a
+        // non-negative counter.
+        for (key, &value) in &vmstat {
+            assert!(!key.is_empty(), "Key should not be empty");
+            assert!(
+                !key.contains(char::is_whitespace),
+                "Key should not contain whitespace"
+            );
+            let _ = value;
+        }
+
+        // The system has been allocating/freeing pages since boot, so the
+        // total free page count must be positive.
+        assert!(
+            vmstat.get("nr_free_pages").is_some_and(|&v| v > 0),
+            "nr_free_pages should be > 0"
+        );
     }
 
     #[test]
