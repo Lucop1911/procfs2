@@ -7,7 +7,7 @@
 #[cfg(test)]
 mod tests {
     use procfs2::proc::{
-        DeviceKind, Process, cpuinfo, devices, diskstats, filesystems, loadavg, meminfo,
+        DeviceKind, Process, buddyinfo, cpuinfo, devices, diskstats, filesystems, loadavg, meminfo,
         partitions, stat, swaps, uptime, version, vmstat, zoneinfo,
     };
     use procfs2::sys;
@@ -474,6 +474,62 @@ mod tests {
             for (i, pcp) in z.pagesets.iter().enumerate() {
                 assert_eq!(pcp.cpu, i as u32, "{} pageset CPU ids", z.name);
             }
+        }
+    }
+
+    #[test]
+    fn test_live_buddyinfo() {
+        let buddy = buddyinfo().expect("Failed to read /proc/buddyinfo");
+
+        // Every kernel has at least one populated zone with buddy lists,
+        // and the Normal zone is always present on 64-bit systems.
+        assert!(!buddy.is_empty(), "Should have at least one zone");
+        let normal = buddy
+            .iter()
+            .find(|b| b.zone.as_ref() == "Normal")
+            .expect("Should have a Normal zone");
+        assert!(
+            !normal.free_lists.is_empty(),
+            "Normal zone should have free lists"
+        );
+    }
+
+    #[test]
+    fn test_live_buddyinfo_fields() {
+        let buddy = buddyinfo().expect("Failed to read /proc/buddyinfo");
+
+        // Every entry has a non-empty whitespace-free zone name and at
+        // least one buddy order count.
+        for b in &buddy {
+            assert!(!b.zone.is_empty(), "Zone name should not be empty");
+            assert!(
+                !b.zone.contains(char::is_whitespace),
+                "Zone name should not contain whitespace"
+            );
+            assert!(
+                !b.free_lists.is_empty(),
+                "{} should have at least one free list",
+                b.zone
+            );
+            let _ = b.node;
+        }
+    }
+
+    #[test]
+    fn test_live_buddyinfo_orders() {
+        let buddy = buddyinfo().expect("Failed to read /proc/buddyinfo");
+
+        // The kernel emits the same MAX_ORDER column count on every line,
+        // so all zones share a consistent free-list length.
+        let orders = buddy[0].free_lists.len();
+        assert!(orders > 0, "Should have at least one order");
+        for b in &buddy {
+            assert_eq!(
+                b.free_lists.len(),
+                orders,
+                "{} free-list length should match",
+                b.zone
+            );
         }
     }
 

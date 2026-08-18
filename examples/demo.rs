@@ -269,6 +269,25 @@ fn main() {
         }
     }
 
+    println!("\n=== /proc/buddyinfo ===");
+    let buddy = proc::buddyinfo().unwrap();
+    for b in &buddy {
+        let total: u64 = b
+            .free_lists
+            .iter()
+            .enumerate()
+            .map(|(order, &count)| count << order)
+            .sum();
+        println!(
+            "  node {} zone {:8} orders={} total_free={}",
+            b.node,
+            b.zone,
+            b.free_lists.len(),
+            total
+        );
+        println!("    free_lists: {:?}", b.free_lists);
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());

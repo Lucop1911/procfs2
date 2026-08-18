@@ -1,3 +1,4 @@
+pub mod buddyinfo;
 pub mod cgroups;
 pub mod cmdline;
 pub mod cpuinfo;
@@ -17,6 +18,7 @@ pub mod version;
 pub mod vmstat;
 pub mod zoneinfo;
 
+pub use buddyinfo::{BuddyInfo, buddyinfo};
 pub use cgroups::{CgroupStat, cgroups};
 pub use cmdline::cmdline;
 pub use cpuinfo::{CpuCore, CpuFlag, cpuinfo};
