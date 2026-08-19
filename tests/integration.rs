@@ -8,9 +8,20 @@
 mod tests {
     use procfs2::proc::{
         DeviceKind, Process, buddyinfo, cpuinfo, devices, diskstats, filesystems, loadavg, meminfo,
-        partitions, stat, swaps, uptime, version, vmstat, zoneinfo,
+        pagetypeinfo, partitions, stat, swaps, uptime, version, vmstat, zoneinfo,
     };
     use procfs2::sys;
+
+    /// `/proc/pagetypeinfo` is mode 0400 (root-only) on some systems.
+    /// Returns `None` when unreadable for that reason; panics on other
+    /// failures so tests still catch genuine parse bugs.
+    fn pagetypeinfo_or_skip() -> Option<procfs2::proc::PageTypeInfo> {
+        match pagetypeinfo() {
+            Ok(info) => Some(info),
+            Err(procfs2::Error::Io(e)) if e.kind() == std::io::ErrorKind::PermissionDenied => None,
+            Err(e) => panic!("Failed to read /proc/pagetypeinfo: {e}"),
+        }
+    }
 
     #[test]
     fn test_live_meminfo() {
@@ -528,6 +539,80 @@ mod tests {
                 b.free_lists.len(),
                 orders,
                 "{} free-list length should match",
+                b.zone
+            );
+        }
+    }
+
+    #[test]
+    fn test_live_pagetypeinfo() {
+        let Some(info) = pagetypeinfo_or_skip() else {
+            return;
+        };
+
+        // The page-block header describes the allocator's block size,
+        // and both tables are present on every kernel.
+        assert!(info.page_block_order > 0, "Page block order should be > 0");
+        assert!(info.pages_per_block > 0, "Pages per block should be > 0");
+        assert!(!info.free.is_empty(), "Should have free-list rows");
+        assert!(!info.blocks.is_empty(), "Should have block-count rows");
+
+        // A page block covers 1 << page_block_order pages.
+        assert_eq!(
+            info.pages_per_block,
+            1u64 << info.page_block_order,
+            "pages_per_block should equal 1 << page_block_order"
+        );
+    }
+
+    #[test]
+    fn test_live_pagetypeinfo_free() {
+        let Some(info) = pagetypeinfo_or_skip() else {
+            return;
+        };
+
+        // Every free-list row names a zone and migrate type, carries a
+        // consistent number of orders (MAX_ORDER), and the zone field
+        // matches one of the block-count rows.
+        let orders = info.free[0].orders.len();
+        assert!(orders > 0, "Should have at least one order");
+        for f in &info.free {
+            assert!(!f.zone.is_empty(), "Zone name should not be empty");
+            assert!(
+                !f.migrate_type.is_empty(),
+                "Migrate type should not be empty"
+            );
+            assert_eq!(
+                f.orders.len(),
+                orders,
+                "{} {} free-list length should match",
+                f.zone,
+                f.migrate_type
+            );
+            assert!(
+                info.blocks.iter().any(|b| b.zone == f.zone),
+                "{} should appear in block counts",
+                f.zone
+            );
+        }
+    }
+
+    #[test]
+    fn test_live_pagetypeinfo_blocks() {
+        let Some(info) = pagetypeinfo_or_skip() else {
+            return;
+        };
+
+        // Every block-count row has a consistent number of columns,
+        // matching the migrate-type header (varies by kernel config).
+        let types = info.blocks[0].types.len();
+        assert!(types > 0, "Should have at least one migrate type");
+        for b in &info.blocks {
+            assert!(!b.zone.is_empty(), "Zone name should not be empty");
+            assert_eq!(
+                b.types.len(),
+                types,
+                "{} block-count length should match",
                 b.zone
             );
         }

@@ -288,6 +288,36 @@ fn main() {
         println!("    free_lists: {:?}", b.free_lists);
     }
 
+    println!("\n=== /proc/pagetypeinfo ===");
+    match proc::pagetypeinfo() {
+        Ok(info) => {
+            println!(
+                "  page block order: {} ({} pages per block)",
+                info.page_block_order, info.pages_per_block
+            );
+            println!("  free-list rows: {}", info.free.len());
+            println!("  block-count rows: {}", info.blocks.len());
+            let orders = info.free.first().map(|f| f.orders.len()).unwrap_or(0);
+            println!("  orders per row: {}", orders);
+            for f in info.free.iter().take(6) {
+                let total: u64 = f
+                    .orders
+                    .iter()
+                    .enumerate()
+                    .map(|(order, &count)| count << order)
+                    .sum();
+                println!(
+                    "  node {} zone {:8} type {:12} free_pages={}",
+                    f.node, f.zone, f.migrate_type, total
+                );
+            }
+            if info.free.len() > 6 {
+                println!("  ... ({} more)", info.free.len() - 6);
+            }
+        }
+        Err(e) => println!("  (skipped: {e})"),
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());
