@@ -12,39 +12,39 @@ pub struct DiskStat {
     pub minor: u32,
     /// Device name (e.g. `sda1`, `nvme0n1`).
     pub name: Box<str>,
-    /// Number of read I/Os completed.
+    /// Read I/Os completed.
     pub reads_completed: u64,
-    /// Number of read I/Os merged with adjacent requests.
+    /// Read I/Os merged with adjacent requests.
     pub reads_merged: u64,
-    /// Number of 512-byte sectors read.
+    /// 512-byte sectors read.
     pub sectors_read: u64,
-    /// Total time spent reading (ms).
+    /// Time spent reading (ms).
     pub time_reading: Milliseconds,
-    /// Number of write I/Os completed.
+    /// Write I/Os completed.
     pub writes_completed: u64,
-    /// Number of write I/Os merged with adjacent requests.
+    /// Write I/Os merged with adjacent requests.
     pub writes_merged: u64,
-    /// Number of 512-byte sectors written.
+    /// 512-byte sectors written.
     pub sectors_written: u64,
-    /// Total time spent writing (ms).
+    /// Time spent writing (ms).
     pub time_writing: Milliseconds,
-    /// Number of I/Os currently in flight.
+    /// I/Os currently in flight.
     pub io_in_progress: u64,
-    /// Total time spent doing I/O (ms).
+    /// Time spent doing I/O (ms).
     pub time_io: Milliseconds,
-    /// Weighted time spent doing I/O (ms).
+    /// Weighted time doing I/O (ms).
     pub weighted_time_io: Milliseconds,
-    /// Number of discard I/Os completed.
+    /// Discard I/Os completed.
     pub discards_completed: u64,
-    /// Number of discard I/Os merged.
+    /// Discard I/Os merged.
     pub discards_merged: u64,
-    /// Number of 512-byte sectors discarded.
+    /// 512-byte sectors discarded.
     pub sectors_discarded: u64,
-    /// Total time spent discarding (ms).
+    /// Time spent discarding (ms).
     pub time_discarding: Milliseconds,
-    /// Number of flush requests completed.
+    /// Flush requests completed.
     pub flush_completed: u64,
-    /// Total time spent flushing (ms).
+    /// Time spent flushing (ms).
     pub time_flushing: Milliseconds,
 }
 

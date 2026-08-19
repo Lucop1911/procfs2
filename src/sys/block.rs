@@ -10,25 +10,25 @@ use crate::util::{Bytes, Milliseconds};
 /// decimal values. Time fields are in milliseconds.
 #[derive(Debug)]
 pub struct BlockStat {
-    /// Number of read I/Os issued.
+    /// Read I/Os issued.
     pub reads_completed: u64,
-    /// Number of read I/Os merged with adjacent requests.
+    /// Read I/Os merged with adjacent requests.
     pub reads_merged: u64,
-    /// Number of 512-byte sectors read.
+    /// 512-byte sectors read.
     pub sectors_read: u64,
-    /// Total time spent reading (ms).
+    /// Time spent reading (ms).
     pub time_reading: Milliseconds,
-    /// Number of write I/Os issued.
+    /// Write I/Os issued.
     pub writes_completed: u64,
-    /// Number of write I/Os merged with adjacent requests.
+    /// Write I/Os merged with adjacent requests.
     pub writes_merged: u64,
-    /// Number of 512-byte sectors written.
+    /// 512-byte sectors written.
     pub sectors_written: u64,
-    /// Total time spent writing (ms).
+    /// Time spent writing (ms).
     pub time_writing: Milliseconds,
-    /// Number of I/Os currently in flight.
+    /// I/Os currently in flight.
     pub io_in_progress: u64,
-    /// Total time spent doing I/O (ms).
+    /// Time spent doing I/O (ms).
     pub time_io: Milliseconds,
 }
 
