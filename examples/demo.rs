@@ -318,6 +318,17 @@ fn main() {
         Err(e) => println!("  (skipped: {e})"),
     }
 
+    println!("\n=== /proc/softirqs ===");
+    let softirqs = proc::softirqs().unwrap();
+    println!("  CPUs: {:?}", softirqs.cpus);
+    for row in &softirqs.rows {
+        let total: u64 = row.per_cpu.iter().sum();
+        println!(
+            "  {:10} total={:<12} per_cpu={:?}",
+            row.name, total, row.per_cpu
+        );
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());

@@ -8,7 +8,7 @@
 mod tests {
     use procfs2::proc::{
         DeviceKind, Process, buddyinfo, cpuinfo, devices, diskstats, filesystems, loadavg, meminfo,
-        pagetypeinfo, partitions, stat, swaps, uptime, version, vmstat, zoneinfo,
+        pagetypeinfo, partitions, softirqs, stat, swaps, uptime, version, vmstat, zoneinfo,
     };
     use procfs2::sys;
 
@@ -615,6 +615,80 @@ mod tests {
                 "{} block-count length should match",
                 b.zone
             );
+        }
+    }
+
+    #[test]
+    fn test_live_softirqs() {
+        let si = softirqs().expect("Failed to read /proc/softirqs");
+
+        // The header lists the online CPUs, and every kernel registers
+        // at least the classic softirq types below.
+        assert!(!si.cpus.is_empty(), "Should have at least one CPU");
+        assert!(!si.rows.is_empty(), "Should have at least one softirq");
+        for key in ["HI", "TIMER", "NET_TX", "NET_RX", "BLOCK", "SCHED", "RCU"] {
+            assert!(
+                si.rows.iter().any(|r| r.name.as_ref() == key),
+                "softirqs should contain {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_live_softirqs_fields() {
+        let si = softirqs().expect("Failed to read /proc/softirqs");
+
+        // Names are whitespace-free tokens without the trailing colon,
+        // and each row carries one counter per listed CPU.
+        for r in &si.rows {
+            assert!(!r.name.is_empty(), "Softirq name should not be empty");
+            assert!(
+                !r.name.contains(':') && !r.name.contains(char::is_whitespace),
+                "Softirq name should be a bare token"
+            );
+            assert_eq!(
+                r.per_cpu.len(),
+                si.cpus.len(),
+                "{} should have one count per CPU",
+                r.name
+            );
+        }
+
+        // Header CPU ids are unique and ascending.
+        for pair in si.cpus.windows(2) {
+            assert!(pair[0] < pair[1], "CPU ids should ascend");
+        }
+
+        // Timers fire constantly on any running system.
+        let timer = si
+            .rows
+            .iter()
+            .find(|r| r.name.as_ref() == "TIMER")
+            .expect("TIMER softirq should exist");
+        assert!(
+            timer.per_cpu.iter().sum::<u64>() > 0,
+            "TIMER counts should be > 0"
+        );
+    }
+
+    #[test]
+    fn test_live_softirqs_monotonic() {
+        let first = softirqs().expect("Failed to read /proc/softirqs");
+        let second = softirqs().expect("Failed to re-read /proc/softirqs");
+
+        // Counters are cumulative since boot, so a second sample can
+        // only stay equal or grow. Rows keep file order, so match by
+        // position.
+        assert_eq!(
+            first.rows.len(),
+            second.rows.len(),
+            "row count should match"
+        );
+        for (a, b) in first.rows.iter().zip(&second.rows) {
+            assert_eq!(a.name, b.name, "row order should be stable");
+            for (&x, &y) in a.per_cpu.iter().zip(&b.per_cpu) {
+                assert!(y >= x, "{} counter went backwards: {} -> {}", a.name, x, y);
+            }
         }
     }
 
