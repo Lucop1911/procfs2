@@ -346,6 +346,22 @@ fn main() {
         println!("  {:>4}: {:>12}  {}", c.name, total, c.description);
     }
 
+    println!("\n=== /proc/iomem (first 10) ===");
+    let iomem = proc::iomem().unwrap();
+    let indent = |depth: usize| "  ".repeat(depth);
+    for r in iomem.iter().take(10) {
+        println!(
+            "  {}{:08x}-{:08x} : {}",
+            indent(r.depth),
+            r.start,
+            r.end,
+            r.name
+        );
+    }
+    if iomem.len() > 10 {
+        println!("  ... ({} more)", iomem.len() - 10);
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());

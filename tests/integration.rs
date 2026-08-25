@@ -8,8 +8,8 @@
 mod tests {
     use procfs2::proc::{
         DeviceKind, Process, buddyinfo, cpuinfo, devices, diskstats, filesystems, interrupts,
-        loadavg, meminfo, pagetypeinfo, partitions, softirqs, stat, swaps, uptime, version, vmstat,
-        zoneinfo,
+        iomem, loadavg, meminfo, pagetypeinfo, partitions, softirqs, stat, swaps, uptime, version,
+        vmstat, zoneinfo,
     };
     use procfs2::sys;
 
@@ -784,6 +784,46 @@ mod tests {
                 assert!(y >= x, "{} counter went backwards: {} -> {}", a.name, x, y);
             }
         }
+    }
+
+    #[test]
+    fn test_live_iomem() {
+        let regions = iomem().expect("Failed to read /proc/iomem");
+        assert!(
+            !regions.is_empty(),
+            "Should have at least one memory region"
+        );
+    }
+
+    #[test]
+    fn test_live_iomem_fields() {
+        let regions = iomem().expect("Failed to read /proc/iomem");
+
+        // Every entry spans a valid range with a non-empty description.
+        for r in &regions {
+            assert!(
+                r.start <= r.end,
+                "Start address {:x} should be <= end address {:x}",
+                r.start,
+                r.end,
+            );
+            assert!(!r.name.is_empty(), "Region name should not be empty");
+        }
+    }
+
+    #[test]
+    fn test_live_iomem_system_ram() {
+        let regions = iomem().expect("Failed to read /proc/iomem");
+
+        // Every running system has System RAM and at least one root-level entry.
+        assert!(
+            regions.iter().any(|r| r.name.as_ref() == "System RAM"),
+            "Should have at least one System RAM region"
+        );
+        assert!(
+            regions.iter().any(|r| r.depth == 0),
+            "Should have at least one root-level entry"
+        );
     }
 
     #[test]
