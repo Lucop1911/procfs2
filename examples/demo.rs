@@ -329,6 +329,23 @@ fn main() {
         );
     }
 
+    println!("\n=== /proc/interrupts ===");
+    let irq = proc::interrupts().unwrap();
+    println!("  CPUs: {:?}", irq.cpus);
+    let mut irq_rows: Vec<_> = irq.rows.iter().collect();
+    irq_rows.sort_by_key(|r| std::cmp::Reverse(r.per_cpu.iter().sum::<u64>()));
+    for r in irq_rows.iter().take(10) {
+        let total: u64 = r.per_cpu.iter().sum();
+        println!("  {:>4}: {:>12}  {}", r.irq, total, r.info);
+    }
+    if irq.rows.len() > 10 {
+        println!("  ... ({} more)", irq.rows.len() - 10);
+    }
+    for c in &irq.counts {
+        let total: u64 = c.values.iter().sum();
+        println!("  {:>4}: {:>12}  {}", c.name, total, c.description);
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());

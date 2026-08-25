@@ -7,8 +7,9 @@
 #[cfg(test)]
 mod tests {
     use procfs2::proc::{
-        DeviceKind, Process, buddyinfo, cpuinfo, devices, diskstats, filesystems, loadavg, meminfo,
-        pagetypeinfo, partitions, softirqs, stat, swaps, uptime, version, vmstat, zoneinfo,
+        DeviceKind, Process, buddyinfo, cpuinfo, devices, diskstats, filesystems, interrupts,
+        loadavg, meminfo, pagetypeinfo, partitions, softirqs, stat, swaps, uptime, version, vmstat,
+        zoneinfo,
     };
     use procfs2::sys;
 
@@ -687,6 +688,99 @@ mod tests {
         for (a, b) in first.rows.iter().zip(&second.rows) {
             assert_eq!(a.name, b.name, "row order should be stable");
             for (&x, &y) in a.per_cpu.iter().zip(&b.per_cpu) {
+                assert!(y >= x, "{} counter went backwards: {} -> {}", a.name, x, y);
+            }
+        }
+    }
+
+    #[test]
+    fn test_live_interrupts() {
+        let irq = interrupts().expect("Failed to read /proc/interrupts");
+
+        // Every running system has at least a timer IRQ and the classic
+        // x86 aggregate counters.
+        assert!(!irq.cpus.is_empty(), "Should have at least one CPU");
+        assert!(!irq.rows.is_empty(), "Should have at least one IRQ row");
+        assert!(
+            !irq.counts.is_empty(),
+            "Should have at least one aggregate counter"
+        );
+        for key in ["NMI", "LOC", "RES", "CAL", "TLB"] {
+            assert!(
+                irq.counts.iter().any(|c| c.name.as_ref() == key),
+                "interrupts should contain aggregate {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_live_interrupts_fields() {
+        let irq = interrupts().expect("Failed to read /proc/interrupts");
+
+        // Every IRQ row has one count per listed CPU and non-empty info.
+        for r in &irq.rows {
+            assert_eq!(
+                r.per_cpu.len(),
+                irq.cpus.len(),
+                "IRQ {} should have one count per CPU",
+                r.irq
+            );
+            assert!(!r.info.is_empty(), "IRQ {} should have info", r.irq);
+        }
+
+        // Aggregate count names are bare tokens without a colon.
+        for c in &irq.counts {
+            assert!(!c.name.is_empty(), "Aggregate name should not be empty");
+            assert!(
+                !c.name.contains(':'),
+                "Aggregate name should not contain ':'"
+            );
+            // Values are either per-CPU or a single system-wide total.
+            assert!(
+                c.values.len() == 1 || c.values.len() == irq.cpus.len(),
+                "{} should have per-cpu or single total values",
+                c.name
+            );
+        }
+
+        // ERR and MIS are present on every kernel.
+        assert!(
+            irq.counts.iter().any(|c| c.name.as_ref() == "ERR"),
+            "Should have ERR aggregate"
+        );
+        assert!(
+            irq.counts.iter().any(|c| c.name.as_ref() == "MIS"),
+            "Should have MIS aggregate"
+        );
+    }
+
+    #[test]
+    fn test_live_interrupts_monotonic() {
+        let first = interrupts().expect("Failed to read /proc/interrupts");
+        let second = interrupts().expect("Failed to re-read /proc/interrupts");
+
+        // Counters are cumulative since boot, so a second sample can
+        // only stay equal or grow.
+        assert_eq!(
+            first.rows.len(),
+            second.rows.len(),
+            "IRQ row count should match"
+        );
+        for (a, b) in first.rows.iter().zip(&second.rows) {
+            assert_eq!(a.irq, b.irq, "IRQ numbers should be stable");
+            for (&x, &y) in a.per_cpu.iter().zip(&b.per_cpu) {
+                assert!(
+                    y >= x,
+                    "IRQ {} counter went backwards: {} -> {}",
+                    a.irq,
+                    x,
+                    y
+                );
+            }
+        }
+        for (a, b) in first.counts.iter().zip(&second.counts) {
+            assert_eq!(a.name, b.name, "Aggregate names should be stable");
+            for (&x, &y) in a.values.iter().zip(&b.values) {
                 assert!(y >= x, "{} counter went backwards: {} -> {}", a.name, x, y);
             }
         }
