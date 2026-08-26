@@ -184,8 +184,7 @@ pub fn parse_dec_f32(s: &[u8]) -> Result<f32> {
 
 /// Parses a decimal `f64` from a byte slice.
 ///
-/// Used for `/proc/uptime` and `/proc/loadavg` where sub-second
-/// precision matters.
+/// Mostly used where sub-second precision matters.
 pub fn parse_dec_f64(s: &[u8]) -> Result<f64> {
     let s = trim_end(s);
     if s.is_empty() {
