@@ -10,7 +10,7 @@ use crate::util::parse;
 /// the nesting depth: root entries are unindented, child entries
 /// are indented by two spaces per level.
 #[derive(Debug)]
-pub struct IoPortEntry {
+pub struct IoPort {
     /// Start port number (inclusive, hex-decoded).
     pub start: u32,
     /// End port number (inclusive, hex-decoded).
@@ -25,14 +25,14 @@ pub struct IoPortEntry {
 /// regions in file order.
 ///
 /// The file uses indentation (two spaces per level) to express a
-/// tree of port regions. The result is flat with a [`depth`](IoPortEntry::depth)
+/// tree of port regions. The result is flat with a [`depth`](IoPort::depth)
 /// field so callers can reconstruct the hierarchy or just iterate
 /// linearly. Addresses are hex without the `0x` prefix.
-pub fn ioports() -> Result<Vec<IoPortEntry>> {
+pub fn ioports() -> Result<Vec<IoPort>> {
     let path = Path::new("/proc/ioports");
     let bytes = parse::read_file(path)?;
 
-    let mut out: Vec<IoPortEntry> = Vec::new();
+    let mut out: Vec<IoPort> = Vec::new();
 
     for (line_num, line) in bytes
         .split(|&b| b == b'\n')
@@ -76,7 +76,7 @@ pub fn ioports() -> Result<Vec<IoPortEntry>> {
                 msg: "invalid name",
             })?;
 
-        out.push(IoPortEntry {
+        out.push(IoPort {
             start,
             end,
             name: name.into(),

@@ -45,7 +45,7 @@ pub struct PerCpuTime {
 /// Includes aggregate and per-CPU time counters, context switch
 /// count, boot time, and process statistics.
 #[derive(Debug)]
-pub struct SystemStat {
+pub struct Stat {
     /// Aggregate CPU time across all cores.
     pub cpu_total: CpuTime,
     /// Per-CPU time counters, one entry per logical CPU.
@@ -85,14 +85,14 @@ fn parse_cpu_times(fields: &[&[u8]]) -> Result<CpuTime> {
     })
 }
 
-/// Reads `/proc/stat` and returns [`SystemStat`].
+/// Reads `/proc/stat` and returns [`Stat`].
 ///
 /// Parses the `cpu` aggregate line, all `cpuN` per-CPU lines, and
 /// the `ctxt`, `btime`, `processes`, `procs_running`, and
 /// `procs_blocked` entries. Other `/proc/stat` lines (interrupts,
 /// softirqs, etc.) are intentionally ignored — they may be added in
 /// future modules.
-pub fn stat() -> Result<SystemStat> {
+pub fn stat() -> Result<Stat> {
     let bytes = parse::read_file(std::path::Path::new("/proc/stat"))?;
     let path = std::path::PathBuf::from("/proc/stat");
 
@@ -160,7 +160,7 @@ pub fn stat() -> Result<SystemStat> {
         }
     }
 
-    Ok(SystemStat {
+    Ok(Stat {
         cpu_total: cpu_total.unwrap_or(CpuTime {
             user: Jiffies(0),
             nice: Jiffies(0),

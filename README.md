@@ -103,11 +103,11 @@ features = ["async", "serde", "macros", "watch"]
 - `proc::uptime()` — `Uptime { total, idle }` from `/proc/uptime`
 - `proc::loadavg()` — `LoadAvg { one, five, fifteen, runnable, total }` from `/proc/loadavg`
 - `proc::meminfo()` — `MemInfo { total, free, available, ... }` from `/proc/meminfo`
-- `proc::stat()` — `SystemStat { cpu_total, per_cpu, ctxt, btime, ... }` from `/proc/stat`
+- `proc::stat()` — `Stat { cpu_total, per_cpu, ctxt, btime, ... }` from `/proc/stat`
 - `proc::cpuinfo()` — `Vec<CpuCore>` from `/proc/cpuinfo`
 - `proc::version()` — `KernelVersion` from `/proc/version`
-- `proc::mounts()` — `Vec<MountEntry>` from `/proc/mounts`
-- `proc::cgoups()` — `Vec<CgroupStat>` from `/proc/cgroups`
+- `proc::mounts()` — `Vec<Mount>` from `/proc/mounts`
+- `proc::cgoups()` — `Vec<Cgroup>` from `/proc/cgroups`
 
 #### Per-Process (`Process`)
 ```rust

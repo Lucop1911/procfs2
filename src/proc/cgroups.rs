@@ -8,7 +8,7 @@ use crate::util::parse;
 /// Lists each registered cgroup controller (subsystem) with its
 /// hierarchy ID, number of cgroups, and enabled status.
 #[derive(Debug)]
-pub struct CgroupStat {
+pub struct Cgroup {
     /// Controller name (e.g. `cpu`, `memory`, `pids`).
     pub subsys_name: Box<str>,
     /// Hierarchy ID. Multiple controllers may share the same ID
@@ -29,7 +29,7 @@ pub struct CgroupStat {
 /// cpu     3       42      1
 /// memory  4       42      1
 /// ```
-pub fn cgroups() -> Result<Vec<CgroupStat>> {
+pub fn cgroups() -> Result<Vec<Cgroup>> {
     let path = Path::new("/proc/cgroups");
     let bytes = parse::read_file(path)?;
 
@@ -59,7 +59,7 @@ pub fn cgroups() -> Result<Vec<CgroupStat>> {
         let num_cgroups = parse::parse_dec_u32(fields[2]).unwrap_or(0);
         let enabled = parse::parse_dec_u32(fields[3]).unwrap_or(0) != 0;
 
-        entries.push(CgroupStat {
+        entries.push(Cgroup {
             subsys_name,
             hierarchy,
             num_cgroups,

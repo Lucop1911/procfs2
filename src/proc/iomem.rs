@@ -10,7 +10,7 @@ use crate::util::parse;
 /// Indentation encodes the nesting depth: root entries are
 /// unindented, child entries are indented by two spaces per level.
 #[derive(Debug)]
-pub struct IoMemEntry {
+pub struct IoMem {
     /// Start address of the region (inclusive, physical).
     pub start: u64,
     /// End address of the region (inclusive, physical).
@@ -28,11 +28,11 @@ pub struct IoMemEntry {
 /// tree of memory regions. The result is flat with a [`depth`](IoMemEntry::depth)
 /// field so callers can reconstruct the hierarchy or just iterate
 /// linearly. Addresses are parsed as hex without the `0x` prefix.
-pub fn iomem() -> Result<Vec<IoMemEntry>> {
+pub fn iomem() -> Result<Vec<IoMem>> {
     let path = Path::new("/proc/iomem");
     let bytes = parse::read_file(path)?;
 
-    let mut out: Vec<IoMemEntry> = Vec::new();
+    let mut out: Vec<IoMem> = Vec::new();
 
     for (line_num, line) in bytes
         .split(|&b| b == b'\n')
@@ -72,7 +72,7 @@ pub fn iomem() -> Result<Vec<IoMemEntry>> {
                 msg: "invalid name",
             })?;
 
-        out.push(IoMemEntry {
+        out.push(IoMem {
             start,
             end,
             name: name.into(),

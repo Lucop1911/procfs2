@@ -9,7 +9,7 @@ use crate::util::parse;
 /// `device-mapper`, `kvm`). Misc devices are a catch-all category
 /// for character devices that don't fit into a major device class.
 #[derive(Debug)]
-pub struct MiscDevice {
+pub struct Misc {
     /// Minor number (0–255, kernel limit for misc devices).
     pub minor: u8,
     /// Device name (e.g. `fuse`, `kvm`).
@@ -22,11 +22,11 @@ pub struct MiscDevice {
 /// The file is a flat table of `<minor>  <name>` lines with no
 /// header. Minor numbers are assigned by the kernel at device
 /// registration time.
-pub fn misc() -> Result<Vec<MiscDevice>> {
+pub fn misc() -> Result<Vec<Misc>> {
     let path = Path::new("/proc/misc");
     let bytes = parse::read_file(path)?;
 
-    let mut out: Vec<MiscDevice> = Vec::new();
+    let mut out: Vec<Misc> = Vec::new();
 
     for (line_num, line) in bytes
         .split(|&b| b == b'\n')
@@ -49,7 +49,7 @@ pub fn misc() -> Result<Vec<MiscDevice>> {
             msg: "invalid name",
         })?;
 
-        out.push(MiscDevice {
+        out.push(Misc {
             minor,
             name: name.into(),
         });

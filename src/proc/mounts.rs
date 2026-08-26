@@ -10,7 +10,7 @@ use crate::util::parse;
 /// For richer data including mount IDs and optional fields, see
 /// [`Process::mountinfo`](crate::proc::Process::mountinfo).
 #[derive(Debug)]
-pub struct MountEntry {
+pub struct Mount {
     /// Device special file or pseudo-device name (e.g. `/dev/sda1`, `proc`, `tmpfs`).
     pub spec: Box<str>,
     /// Mount point in the filesystem tree.
@@ -35,7 +35,7 @@ pub struct MountEntry {
 /// mount with six space-separated fields. Backslash-escaped
 /// characters (spaces, tabs, newlines, backslashes) in paths are
 /// decoded.
-pub fn mounts() -> Result<Vec<MountEntry>> {
+pub fn mounts() -> Result<Vec<Mount>> {
     let path = Path::new("/proc/mounts");
     let bytes = parse::read_file(path)?;
 
@@ -51,7 +51,7 @@ pub fn mounts() -> Result<Vec<MountEntry>> {
             });
         }
 
-        entries.push(MountEntry {
+        entries.push(Mount {
             spec: decode_escaped_path(fields[0]),
             file: decode_escaped_path(fields[1]),
             vfstype: bytes_to_box_str(fields[2]),
