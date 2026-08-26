@@ -8,8 +8,8 @@
 mod tests {
     use procfs2::proc::{
         DeviceKind, Process, buddyinfo, cpuinfo, devices, diskstats, filesystems, interrupts,
-        iomem, ioports, loadavg, meminfo, pagetypeinfo, partitions, softirqs, stat, swaps, uptime,
-        version, vmstat, zoneinfo,
+        iomem, ioports, loadavg, meminfo, misc, pagetypeinfo, partitions, softirqs, stat, swaps,
+        uptime, version, vmstat, zoneinfo,
     };
     use procfs2::sys;
 
@@ -869,6 +869,34 @@ mod tests {
         assert!(
             regions.iter().any(|r| r.name.as_ref() == "pic1"),
             "Should have a pic1 entry"
+        );
+    }
+
+    #[test]
+    fn test_live_misc() {
+        let devices = misc().expect("Failed to read /proc/misc");
+        assert!(!devices.is_empty(), "Should have at least one misc device");
+    }
+
+    #[test]
+    fn test_live_misc_fields() {
+        let devices = misc().expect("Failed to read /proc/misc");
+
+        // Every entry has a valid minor number and a non-empty name.
+        for d in &devices {
+            assert!(!d.name.is_empty(), "Misc device name should not be empty");
+            let _ = d.minor;
+        }
+    }
+
+    #[test]
+    fn test_live_misc_known() {
+        let devices = misc().expect("Failed to read /proc/misc");
+
+        // fuse is registered on every modern kernel.
+        assert!(
+            devices.iter().any(|d| d.name.as_ref() == "fuse"),
+            "Should have a fuse misc device"
         );
     }
 

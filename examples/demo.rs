@@ -377,6 +377,12 @@ fn main() {
         println!("  ... ({} more)", ioports.len() - 10);
     }
 
+    println!("\n=== /proc/misc ===");
+    let misc = proc::misc().unwrap();
+    for d in &misc {
+        println!("  {:>3} {}", d.minor, d.name);
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());
