@@ -8,8 +8,8 @@
 mod tests {
     use procfs2::proc::{
         DeviceKind, Process, buddyinfo, cpuinfo, devices, diskstats, filesystems, interrupts,
-        iomem, ioports, loadavg, meminfo, misc, modules, pagetypeinfo, partitions, softirqs, stat,
-        swaps, uptime, version, vmstat, zoneinfo,
+        iomem, ioports, loadavg, locks, meminfo, misc, modules, pagetypeinfo, partitions, softirqs,
+        stat, swaps, uptime, version, vmstat, zoneinfo,
     };
     use procfs2::sys;
 
@@ -938,6 +938,53 @@ mod tests {
             mods.iter().any(|m| m.deps.as_ref() != "-"),
             "Should have at least one module with dependencies"
         );
+    }
+
+    #[test]
+    fn test_live_locks() {
+        let lock_list = locks().expect("Failed to read /proc/locks");
+
+        // Locks may be absent on a quiet system, so don't require any.
+        for l in &lock_list {
+            assert!(l.pid != 0, "Lock PID should not be 0");
+            assert!(l.inode > 0, "Lock inode should be > 0");
+        }
+    }
+
+    #[test]
+    fn test_live_locks_fields() {
+        let lock_list = locks().expect("Failed to read /proc/locks");
+
+        for l in &lock_list {
+            match l.lock_type {
+                procfs2::proc::LockType::Flock
+                | procfs2::proc::LockType::Ofdlck
+                | procfs2::proc::LockType::Posix => {}
+            }
+            match l.class {
+                procfs2::proc::LockClass::Advisory | procfs2::proc::LockClass::Mandatory => {}
+            }
+            match l.access {
+                procfs2::proc::LockAccess::Read | procfs2::proc::LockAccess::Write => {}
+            }
+            let _ = l.start;
+            let _ = l.end;
+        }
+    }
+
+    #[test]
+    fn test_live_locks_no_zero_pid() {
+        let lock_list = locks().expect("Failed to read /proc/locks");
+
+        // OFD locks show -1, POSIX/FLOCK show a positive PID.
+        // No lock should have pid == 0.
+        for l in &lock_list {
+            assert!(
+                l.pid != 0,
+                "Lock PID should be non-zero (got 0 for {:?})",
+                l.lock_type,
+            );
+        }
     }
 
     #[test]

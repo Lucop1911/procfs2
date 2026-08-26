@@ -395,6 +395,22 @@ fn main() {
         println!("  ... ({} more)", mods.len() - 10);
     }
 
+    println!("\n=== /proc/locks ===");
+    let lock_list = proc::locks().unwrap();
+    if lock_list.is_empty() {
+        println!("  (no active locks)");
+    }
+    for l in &lock_list {
+        let end = l
+            .end
+            .map(|e| format!("{}", e))
+            .unwrap_or_else(|| "EOF".into());
+        println!(
+            "  {:?} {:?} {:?} pid={:<7} {:>2}:{:<2}:{:<10} {}-{}",
+            l.lock_type, l.class, l.access, l.pid, l.major, l.minor, l.inode, l.start, end
+        );
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());
