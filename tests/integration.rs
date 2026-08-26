@@ -8,8 +8,8 @@
 mod tests {
     use procfs2::proc::{
         DeviceKind, Process, buddyinfo, cpuinfo, devices, diskstats, filesystems, interrupts,
-        iomem, ioports, loadavg, meminfo, misc, pagetypeinfo, partitions, softirqs, stat, swaps,
-        uptime, version, vmstat, zoneinfo,
+        iomem, ioports, loadavg, meminfo, misc, modules, pagetypeinfo, partitions, softirqs, stat,
+        swaps, uptime, version, vmstat, zoneinfo,
     };
     use procfs2::sys;
 
@@ -897,6 +897,46 @@ mod tests {
         assert!(
             devices.iter().any(|d| d.name.as_ref() == "fuse"),
             "Should have a fuse misc device"
+        );
+    }
+
+    #[test]
+    fn test_live_modules() {
+        let mods = modules().expect("Failed to read /proc/modules");
+        assert!(!mods.is_empty(), "Should have at least one loaded module");
+    }
+
+    #[test]
+    fn test_live_modules_fields() {
+        let mods = modules().expect("Failed to read /proc/modules");
+
+        // Every entry has a non-empty name, positive size, and valid state.
+        for m in &mods {
+            assert!(!m.name.is_empty(), "Module name should not be empty");
+            assert!(m.size > 0, "Module size should be > 0");
+            assert!(
+                m.state.as_ref() == "Live"
+                    || m.state.as_ref() == "Loading"
+                    || m.state.as_ref() == "Unloading",
+                "Module state should be Live, Loading, or Unloading"
+            );
+            let _ = m.ref_count;
+            let _ = m.address;
+        }
+    }
+
+    #[test]
+    fn test_live_modules_live() {
+        let mods = modules().expect("Failed to read /proc/modules");
+
+        // At least one module must be live with a dependency list.
+        assert!(
+            mods.iter().any(|m| m.state.as_ref() == "Live"),
+            "Should have at least one live module"
+        );
+        assert!(
+            mods.iter().any(|m| m.deps.as_ref() != "-"),
+            "Should have at least one module with dependencies"
         );
     }
 

@@ -383,6 +383,18 @@ fn main() {
         println!("  {:>3} {}", d.minor, d.name);
     }
 
+    println!("\n=== /proc/modules (first 10) ===");
+    let mods = proc::modules().unwrap();
+    for m in mods.iter().take(10) {
+        println!(
+            "  {:20} {:>8} bytes  ref={:<3}  {:>7}  {}",
+            m.name, m.size, m.ref_count, m.state, m.deps
+        );
+    }
+    if mods.len() > 10 {
+        println!("  ... ({} more)", mods.len() - 10);
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());
