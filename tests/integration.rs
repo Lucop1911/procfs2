@@ -8,8 +8,8 @@
 mod tests {
     use procfs2::proc::{
         DeviceKind, Process, buddyinfo, cpuinfo, devices, diskstats, filesystems, interrupts,
-        iomem, loadavg, meminfo, pagetypeinfo, partitions, softirqs, stat, swaps, uptime, version,
-        vmstat, zoneinfo,
+        iomem, ioports, loadavg, meminfo, pagetypeinfo, partitions, softirqs, stat, swaps, uptime,
+        version, vmstat, zoneinfo,
     };
     use procfs2::sys;
 
@@ -823,6 +823,52 @@ mod tests {
         assert!(
             regions.iter().any(|r| r.depth == 0),
             "Should have at least one root-level entry"
+        );
+    }
+
+    #[test]
+    fn test_live_ioports() {
+        let regions = ioports().expect("Failed to read /proc/ioports");
+        assert!(
+            !regions.is_empty(),
+            "Should have at least one I/O port region"
+        );
+    }
+
+    #[test]
+    fn test_live_ioports_fields() {
+        let regions = ioports().expect("Failed to read /proc/ioports");
+
+        // Every entry spans a valid range with a non-empty description.
+        for r in &regions {
+            assert!(
+                r.start <= r.end,
+                "Port start {} should be <= end {}",
+                r.start,
+                r.end,
+            );
+            assert!(!r.name.is_empty(), "Port region name should not be empty");
+        }
+    }
+
+    #[test]
+    fn test_live_ioports_depth() {
+        let regions = ioports().expect("Failed to read /proc/ioports");
+
+        // The file always has at least one root-level entry.
+        assert!(
+            regions.iter().any(|r| r.depth == 0),
+            "Should have at least one root-level entry"
+        );
+
+        // Classic ISA devices are always present on x86 systems.
+        assert!(
+            regions.iter().any(|r| r.name.as_ref() == "dma1"),
+            "Should have a dma1 entry"
+        );
+        assert!(
+            regions.iter().any(|r| r.name.as_ref() == "pic1"),
+            "Should have a pic1 entry"
         );
     }
 

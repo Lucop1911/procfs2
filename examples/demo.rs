@@ -362,6 +362,21 @@ fn main() {
         println!("  ... ({} more)", iomem.len() - 10);
     }
 
+    println!("\n=== /proc/ioports (first 10) ===");
+    let ioports = proc::ioports().unwrap();
+    for r in ioports.iter().take(10) {
+        println!(
+            "  {}{:04x}-{:04x} : {}",
+            indent(r.depth),
+            r.start,
+            r.end,
+            r.name
+        );
+    }
+    if ioports.len() > 10 {
+        println!("  ... ({} more)", ioports.len() - 10);
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());
