@@ -28,6 +28,7 @@ harness = false
 [dev-dependencies]
 criterion = "0.8.2"
 procfs = "0.18.0"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }
 
 [features]
 default = []
@@ -35,3 +36,11 @@ async = ["dep:tokio"]
 watch = ["dep:libc"]
 serde = ["dep:serde"]
 macros = ["dep:procfs2-macros"]
+
+[[example]]
+name = "async"
+required-features = ["async"]
+
+[[example]]
+name = "macros"
+required-features = ["macros"]

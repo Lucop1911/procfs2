@@ -1,17 +1,17 @@
 #![cfg(feature = "async")]
 
 //! Async I/O helpers for procfs2.
-//! 
+//!
 //! This module provides async variants of file reading operations using tokio.
 //! These are useful when integrating procfs2 with async applications.
-//! 
+//!
 //! # Usage
-//! 
+//!
 //! Requires the `async` feature to be enabled.
-//! 
+//!
 //! ```ignore
 //! use procfs2::async_helpers;
-//! 
+//!
 //! let content = async_helpers::read_file("/proc/meminfo").await?;
 //! ```
 
@@ -57,8 +57,10 @@ pub async fn read_to_string(path: impl AsRef<Path>) -> Result<String> {
     use tokio::fs;
 
     let path = path.as_ref().to_path_buf();
-    fs::read_to_string(&path).await.map_err(|e| crate::error::Error::Io {
-        path: Some(path),
-        error: e,
-    })
+    fs::read_to_string(&path)
+        .await
+        .map_err(|e| crate::error::Error::Io {
+            path: Some(path),
+            error: e,
+        })
 }

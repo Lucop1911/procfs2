@@ -15,6 +15,9 @@ pub mod util;
 #[cfg(feature = "macros")]
 pub mod macros;
 
+#[cfg(feature = "async")]
+pub mod async_helpers;
+
 #[path = "proc/mod.rs"]
 pub mod r#proc;
 
