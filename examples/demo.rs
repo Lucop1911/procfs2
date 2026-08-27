@@ -433,6 +433,21 @@ fn main() {
         println!("  ... ({} more)", crypto.len() - 10);
     }
 
+    println!("\n=== /proc/consoles ===");
+    let consoles = proc::consoles().unwrap();
+    for c in &consoles {
+        let dev = match (c.major, c.minor) {
+            (Some(major), Some(minor)) => format!("{major}:{minor}"),
+            _ => "-".to_string(),
+        };
+        println!(
+            "  {:12} {:<10} dev={}",
+            c.name,
+            format!("{:?}", c.flags),
+            dev
+        );
+    }
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());

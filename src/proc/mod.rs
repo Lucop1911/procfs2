@@ -1,6 +1,7 @@
 pub mod buddyinfo;
 pub mod cgroups;
 pub mod cmdline;
+pub mod consoles;
 pub mod cpuinfo;
 pub mod crypto;
 pub mod devices;
@@ -30,6 +31,7 @@ pub mod zoneinfo;
 pub use buddyinfo::{BuddyInfo, buddyinfo};
 pub use cgroups::{Cgroup, cgroups};
 pub use cmdline::cmdline;
+pub use consoles::{Console, ConsoleFlags, consoles};
 pub use cpuinfo::{CpuCore, CpuFlag, cpuinfo};
 pub use crypto::{Crypto, crypto};
 pub use devices::{Device, DeviceKind, devices};

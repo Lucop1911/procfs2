@@ -9,7 +9,14 @@ use std::path::PathBuf;
 #[derive(Debug)]
 pub enum Error {
     /// A wrapped [`std::io::Error`] from filesystem operations.
-    Io(std::io::Error),
+    ///
+    /// `path` is the `/proc` or `/sys` file that was being accessed when
+    /// the operation failed, or `None` when there is no single file (e.g.
+    /// an inotify fd operation or a translated `last_os_error`).
+    Io {
+        path: Option<PathBuf>,
+        error: std::io::Error,
+    },
 
     /// A parsing failure at a specific location within a file.
     ///
@@ -41,7 +48,16 @@ pub enum Error {
 impl Clone for Error {
     fn clone(&self) -> Self {
         match self {
-            Error::Io(e) => Error::Io(std::io::Error::new(e.kind(), e.to_string())),
+            // Rebuild the OS error preserving its raw error code rather than
+            // wrapping the Display text, which would drop the code and turn
+            // the message into a plain custom string.
+            Error::Io { path, error: e } => Error::Io {
+                path: path.clone(),
+                error: match e.raw_os_error() {
+                    Some(code) => std::io::Error::from_raw_os_error(code),
+                    None => std::io::Error::new(e.kind(), "io error"),
+                },
+            },
             Error::Parse { path, line, msg } => Error::Parse {
                 path: path.clone(),
                 line: *line,
@@ -60,7 +76,24 @@ impl Clone for Error {
 impl PartialEq for Error {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Error::Io(_), Error::Io(_)) => false,
+            (
+                Error::Io {
+                    path: p1,
+                    error: e1,
+                },
+                Error::Io {
+                    path: p2,
+                    error: e2,
+                },
+            ) => {
+                p1 == p2
+                    && e1.kind() == e2.kind()
+                    && match (e1.raw_os_error(), e2.raw_os_error()) {
+                        (Some(c1), Some(c2)) => c1 == c2,
+                        (None, None) => true,
+                        _ => false,
+                    }
+            }
             (
                 Error::Parse {
                     path: p1,
@@ -95,7 +128,16 @@ impl Eq for Error {}
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Io(e) => write!(f, "IO error: {e}"),
+            Error::Io {
+                path: Some(path),
+                error: e,
+            } => {
+                write!(f, "IO error reading {:?}: {e}", path.display())
+            }
+            Error::Io {
+                path: None,
+                error: e,
+            } => write!(f, "IO error: {e}"),
             Error::Parse { path, line, msg } => {
                 write!(f, "Parse error at {:?}:{line}: {msg}", path.display())
             }
@@ -117,7 +159,14 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::Io { error, .. } => Some(error),
+            _ => None,
+        }
+    }
+}
 
 /// Represents a Linux kernel version as three numeric components.
 ///
@@ -138,7 +187,11 @@ impl KernelVersion {
     /// This function locates the `version ` prefix and extracts the first
     /// three dot-separated numeric components.
     pub fn current() -> Result<Self> {
-        let bytes = std::fs::read("/proc/version").map_err(Error::Io)?;
+        let path = PathBuf::from("/proc/version");
+        let bytes = std::fs::read(&path).map_err(|e| Error::Io {
+            path: Some(path.clone()),
+            error: e,
+        })?;
         let text = std::str::from_utf8(&bytes).map_err(|_| Error::Parse {
             path: PathBuf::from("/proc/version"),
             line: 0,
@@ -223,3 +276,80 @@ impl KernelVersion {
 
 /// Alias for `std::result::Result<T, Error>`.
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(test)]
+mod tests {
+    use super::{Error, KernelVersion};
+
+    fn err_noent() -> Error {
+        Error::Io {
+            path: Some(std::path::PathBuf::from("/proc/nonexistent")),
+            error: std::io::Error::from_raw_os_error(2), // ENOENT
+        }
+    }
+
+    #[test]
+    fn io_clone_preserves_code_and_path() {
+        let err = err_noent();
+        let cloned = err.clone();
+        match (&err, &cloned) {
+            (
+                Error::Io {
+                    path: p1,
+                    error: e1,
+                },
+                Error::Io {
+                    path: p2,
+                    error: e2,
+                },
+            ) => {
+                assert_eq!(p1, p2);
+                assert_eq!(e1.raw_os_error(), Some(2));
+                assert_eq!(e2.raw_os_error(), Some(2));
+            }
+            _ => panic!("expected Io variants"),
+        }
+    }
+
+    #[test]
+    fn io_clone_eq_self() {
+        let err = err_noent();
+        assert_eq!(err.clone(), err);
+    }
+
+    #[test]
+    fn io_eq_distinguishes_path() {
+        let a = Error::Io {
+            path: Some(std::path::PathBuf::from("/proc/a")),
+            error: std::io::Error::from_raw_os_error(2),
+        };
+        let b = Error::Io {
+            path: Some(std::path::PathBuf::from("/proc/b")),
+            error: std::io::Error::from_raw_os_error(2),
+        };
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn io_source_is_forwarded() {
+        let err = err_noent();
+        let source = std::error::Error::source(&err);
+        if let Some(src) = source {
+            assert_eq!(src.to_string(), "No such file or directory (os error 2)");
+        } else {
+            panic!("expected an Io source");
+        }
+    }
+
+    #[test]
+    fn unsupported_kernel_at_least() {
+        let k = KernelVersion {
+            major: 5,
+            minor: 15,
+            patch: 0,
+        };
+        assert!(k.at_least(5, 15));
+        assert!(k.at_least(5, 14));
+        assert!(!k.at_least(6, 0));
+    }
+}

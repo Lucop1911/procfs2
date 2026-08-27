@@ -52,16 +52,25 @@ impl Namespaces {
             if e.kind() == std::io::ErrorKind::PermissionDenied {
                 Error::PermissionDenied(std::path::PathBuf::from(path))
             } else {
-                Error::Io(e)
+                Error::Io {
+                    path: Some(std::path::PathBuf::from(path)),
+                    error: e,
+                }
             }
         })?;
 
         for entry in entries {
-            let entry = entry.map_err(Error::Io)?;
+            let entry = entry.map_err(|e| Error::Io {
+                path: Some(std::path::PathBuf::from(path)),
+                error: e,
+            })?;
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
 
-            let target = std::fs::read_link(entry.path()).map_err(Error::Io)?;
+            let target = std::fs::read_link(entry.path()).map_err(|e| Error::Io {
+                path: Some(entry.path()),
+                error: e,
+            })?;
             let target_str = target.to_string_lossy();
 
             if let Some(inode) = parse_ns_inode(&target_str) {

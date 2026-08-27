@@ -62,7 +62,10 @@ impl Process {
     /// the kernel-visible PID may differ from the host PID.
     pub fn current() -> Result<Self> {
         let path = "/proc/self";
-        let target = std::fs::read_link(path).map_err(Error::Io)?;
+        let target = std::fs::read_link(path).map_err(|e| Error::Io {
+            path: Some(std::path::PathBuf::from(path)),
+            error: e,
+        })?;
         let pid_str = target
             .file_name()
             .ok_or_else(|| Error::Parse {
@@ -96,7 +99,11 @@ impl Process {
         let entries = match std::fs::read_dir("/proc") {
             Ok(iter) => iter,
             Err(e) => {
-                return vec![Err(Error::Io(e))].into_iter();
+                return vec![Err(Error::Io {
+                    path: Some(std::path::PathBuf::from("/proc")),
+                    error: e,
+                })]
+                .into_iter();
             }
         };
 
@@ -112,7 +119,10 @@ impl Process {
                         None
                     }
                 }
-                Err(e) => Some(Err(Error::Io(e))),
+                Err(e) => Some(Err(Error::Io {
+                    path: Some(std::path::PathBuf::from("/proc")),
+                    error: e,
+                })),
             })
             .collect::<Vec<_>>()
             .into_iter()
@@ -195,7 +205,10 @@ impl Process {
             if e.kind() == std::io::ErrorKind::PermissionDenied {
                 Error::PermissionDenied(std::path::PathBuf::from(&path))
             } else {
-                Error::Io(e)
+                Error::Io {
+                    path: Some(std::path::PathBuf::from(&path)),
+                    error: e,
+                }
             }
         })
     }
@@ -210,7 +223,10 @@ impl Process {
             if e.kind() == std::io::ErrorKind::PermissionDenied {
                 Error::PermissionDenied(std::path::PathBuf::from(&path))
             } else {
-                Error::Io(e)
+                Error::Io {
+                    path: Some(std::path::PathBuf::from(&path)),
+                    error: e,
+                }
             }
         })
     }
@@ -262,17 +278,26 @@ impl Process {
             if e.kind() == std::io::ErrorKind::PermissionDenied {
                 Error::PermissionDenied(std::path::PathBuf::from(&path))
             } else {
-                Error::Io(e)
+                Error::Io {
+                    path: Some(std::path::PathBuf::from(&path)),
+                    error: e,
+                }
             }
         })?;
 
         let mut fds = Vec::new();
 
         for entry in entries {
-            let entry = entry.map_err(Error::Io)?;
+            let entry = entry.map_err(|e| Error::Io {
+                path: Some(std::path::PathBuf::from(&path)),
+                error: e,
+            })?;
             let fd_num = entry.file_name().to_string_lossy().parse::<i32>().ok();
             if let Some(num) = fd_num {
-                let target = std::fs::read_link(entry.path()).map_err(Error::Io)?;
+                let target = std::fs::read_link(entry.path()).map_err(|e| Error::Io {
+                    path: Some(entry.path().to_path_buf()),
+                    error: e,
+                })?;
                 let target_str = target.to_string_lossy();
                 let fd_target = FdTarget::parse(&target_str);
                 fds.push(Fd {
@@ -350,7 +375,11 @@ impl Process {
         let entries = match std::fs::read_dir(&task_path) {
             Ok(iter) => iter,
             Err(e) => {
-                return vec![Err(Error::Io(e))].into_iter();
+                return vec![Err(Error::Io {
+                    path: Some(std::path::PathBuf::from(&task_path)),
+                    error: e,
+                })]
+                .into_iter();
             }
         };
 
@@ -366,7 +395,10 @@ impl Process {
                         None
                     }
                 }
-                Err(e) => Some(Err(Error::Io(e))),
+                Err(e) => Some(Err(Error::Io {
+                    path: Some(std::path::PathBuf::from(&task_path)),
+                    error: e,
+                })),
             })
             .collect::<Vec<_>>()
             .into_iter()

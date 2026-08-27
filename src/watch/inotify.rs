@@ -55,7 +55,10 @@ impl Watcher {
         // It returns a valid file descriptor or -1 on error (errno set).
         let fd = unsafe { libc::inotify_init() };
         if fd < 0 {
-            return Err(Error::Io(std::io::Error::last_os_error()));
+            return Err(Error::Io {
+                path: None,
+                error: std::io::Error::last_os_error(),
+            });
         }
 
         // Set O_NONBLOCK on fd so read returns EAGAIN instead of blocking
@@ -89,11 +92,9 @@ impl Watcher {
 
         // Convert path to C string for syscall
         let path_bytes = path.as_os_str().as_bytes();
-        let c_string = std::ffi::CString::new(path_bytes).map_err(|_| {
-            Error::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "path contains null byte",
-            ))
+        let c_string = std::ffi::CString::new(path_bytes).map_err(|_| Error::Io {
+            path: Some(path.to_path_buf()),
+            error: std::io::Error::new(std::io::ErrorKind::InvalidInput, "path contains null byte"),
         })?;
 
         // inotify mask constants:
@@ -109,7 +110,10 @@ impl Watcher {
         let wd = unsafe { libc::inotify_add_watch(self.fd, c_string.as_ptr(), MASK) };
 
         if wd < 0 {
-            return Err(Error::Io(std::io::Error::last_os_error()));
+            return Err(Error::Io {
+                path: Some(path.to_path_buf()),
+                error: std::io::Error::last_os_error(),
+            });
         }
 
         // Store the path for later lookup
@@ -145,7 +149,10 @@ impl Watcher {
                     let ret = unsafe { libc::poll(&mut pollfd, 1, -1) };
 
                     if ret < 0 {
-                        return Err(Error::Io(std::io::Error::last_os_error()));
+                        return Err(Error::Io {
+                            path: None,
+                            error: std::io::Error::last_os_error(),
+                        });
                     }
                 }
             }
@@ -172,7 +179,10 @@ impl Watcher {
             if err.kind() == std::io::ErrorKind::WouldBlock {
                 return Ok(None);
             }
-            return Err(Error::Io(err));
+            return Err(Error::Io {
+                path: None,
+                error: err,
+            });
         }
 
         if n == 0 {
@@ -267,7 +277,10 @@ impl Watcher {
         let ret = unsafe { libc::inotify_rm_watch(self.fd, wd as libc::c_int) };
 
         if ret < 0 {
-            return Err(Error::Io(std::io::Error::last_os_error()));
+            return Err(Error::Io {
+                path: None,
+                error: std::io::Error::last_os_error(),
+            });
         }
 
         self.watches.lock().unwrap().remove(&wd);
@@ -297,8 +310,10 @@ impl Watcher {
         // Use tokio's async I/O to wait for events
         use tokio::io::unix::AsyncFd;
 
-        let afd =
-            AsyncFd::new(self.fd).map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+        let afd = AsyncFd::new(self.fd).map_err(|e| Error::Io {
+            path: None,
+            error: std::io::Error::other(e.to_string()),
+        })?;
 
         loop {
             // Try to read without blocking
@@ -306,10 +321,10 @@ impl Watcher {
                 Some(event) => return Ok(event),
                 None => {
                     // Wait for the fd to become readable
-                    let guard = afd
-                        .readable()
-                        .await
-                        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+                    let guard = afd.readable().await.map_err(|e| Error::Io {
+                        path: None,
+                        error: std::io::Error::other(e.to_string()),
+                    })?;
                     let mut guard = guard;
                     guard.clear_ready();
                 }

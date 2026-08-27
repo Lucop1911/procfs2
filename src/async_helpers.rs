@@ -33,8 +33,12 @@ use crate::error::Result;
 /// Returns an error if the file cannot be read.
 pub async fn read_file(path: impl AsRef<Path>) -> Result<Vec<u8>> {
     use tokio::fs;
-    
-    fs::read(path).await.map_err(crate::error::Error::Io)
+
+    let path = path.as_ref().to_path_buf();
+    fs::read(&path).await.map_err(|e| crate::error::Error::Io {
+        path: Some(path),
+        error: e,
+    })
 }
 
 /// Asynchronously reads the entire contents of a file into a string.
@@ -51,8 +55,12 @@ pub async fn read_file(path: impl AsRef<Path>) -> Result<Vec<u8>> {
 /// Returns an error if the file cannot be read or is not valid UTF-8.
 pub async fn read_to_string(path: impl AsRef<Path>) -> Result<String> {
     use tokio::fs;
-    
-    fs::read_to_string(path).await.map_err(crate::error::Error::Io)
+
+    let path = path.as_ref().to_path_buf();
+    fs::read_to_string(&path).await.map_err(|e| crate::error::Error::Io {
+        path: Some(path),
+        error: e,
+    })
 }
 
 /// Asynchronously reads a file and parses it as key-value data.

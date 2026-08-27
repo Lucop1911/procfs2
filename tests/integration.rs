@@ -7,9 +7,9 @@
 #[cfg(test)]
 mod tests {
     use procfs2::proc::{
-        DeviceKind, Process, buddyinfo, cpuinfo, crypto, devices, diskstats, filesystems,
-        interrupts, iomem, ioports, loadavg, locks, meminfo, misc, modules, pagetypeinfo,
-        partitions, softirqs, stat, swaps, uptime, version, vmstat, zoneinfo,
+        ConsoleFlags, DeviceKind, Process, buddyinfo, consoles, cpuinfo, crypto, devices,
+        diskstats, filesystems, interrupts, iomem, ioports, loadavg, locks, meminfo, misc, modules,
+        pagetypeinfo, partitions, softirqs, stat, swaps, uptime, version, vmstat, zoneinfo,
     };
     use procfs2::sys;
 
@@ -19,7 +19,11 @@ mod tests {
     fn pagetypeinfo_or_skip() -> Option<procfs2::proc::PageTypeInfo> {
         match pagetypeinfo() {
             Ok(info) => Some(info),
-            Err(procfs2::Error::Io(e)) if e.kind() == std::io::ErrorKind::PermissionDenied => None,
+            Err(procfs2::Error::Io { error: e, .. })
+                if e.kind() == std::io::ErrorKind::PermissionDenied =>
+            {
+                None
+            }
             Err(e) => panic!("Failed to read /proc/pagetypeinfo: {e}"),
         }
     }
@@ -972,6 +976,55 @@ mod tests {
                 .iter()
                 .any(|entry| entry.self_test.as_ref() == "passed"),
             "Should have at least one passed crypto self-test"
+        );
+    }
+
+    #[test]
+    fn test_live_consoles() {
+        let cons = consoles().expect("Failed to read /proc/consoles");
+
+        // Every running system registers at least the tty console.
+        assert!(!cons.is_empty(), "Should have at least one console");
+        assert!(
+            cons.iter().any(|c| c.name.as_ref() == "tty0"),
+            "Should have a tty0 console"
+        );
+    }
+
+    #[test]
+    fn test_live_consoles_fields() {
+        let cons = consoles().expect("Failed to read /proc/consoles");
+
+        // Every console has a non-empty name and a device when one exists.
+        for c in &cons {
+            assert!(!c.name.is_empty(), "Console name should not be empty");
+            match (c.major, c.minor) {
+                (Some(major), Some(minor)) => {
+                    assert!(major > 0, "Console major should be > 0");
+                    let _ = minor;
+                }
+                (None, None) => {}
+                _ => panic!("Console major/minor should both be set or both absent"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_live_consoles_flags() {
+        let cons = consoles().expect("Failed to read /proc/consoles");
+
+        // The tty console is enabled and writable on every system.
+        let tty = cons
+            .iter()
+            .find(|c| c.name.as_ref() == "tty0")
+            .expect("Should have a tty0 console");
+        assert!(
+            tty.flags.contains(ConsoleFlags::ENABLED),
+            "tty0 should be enabled"
+        );
+        assert!(
+            tty.flags.contains(ConsoleFlags::WRITE),
+            "tty0 should be writable"
         );
     }
 

@@ -71,7 +71,13 @@ impl PowerSupply {
     pub fn all() -> impl Iterator<Item = Result<Self>> {
         let entries = match std::fs::read_dir("/sys/class/power_supply") {
             Ok(iter) => iter,
-            Err(e) => return vec![Err(Error::Io(e))].into_iter(),
+            Err(e) => {
+                return vec![Err(Error::Io {
+                    path: Some(std::path::PathBuf::from("/sys/class/power_supply")),
+                    error: e,
+                })]
+                .into_iter();
+            }
         };
 
         entries
@@ -88,7 +94,10 @@ impl PowerSupply {
                         None
                     }
                 }
-                Err(e) => Some(Err(Error::Io(e))),
+                Err(e) => Some(Err(Error::Io {
+                    path: Some(std::path::PathBuf::from("/sys/class/power_supply")),
+                    error: e,
+                })),
             })
             .collect::<Vec<_>>()
             .into_iter()

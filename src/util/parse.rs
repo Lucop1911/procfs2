@@ -5,7 +5,10 @@ use crate::error::{Error, Result};
 /// This is the primary I/O entry point for all `/proc` and `/sys` reads.
 /// Errors are wrapped into [`Error::Io`].
 pub fn read_file(path: &std::path::Path) -> Result<Vec<u8>> {
-    std::fs::read(path).map_err(Error::Io)
+    std::fs::read(path).map_err(|e| Error::Io {
+        path: Some(path.to_path_buf()),
+        error: e,
+    })
 }
 
 /// Trait for types that can be parsed from a raw byte buffer.
