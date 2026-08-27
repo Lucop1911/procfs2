@@ -140,6 +140,96 @@ pub fn parse_dec_u32(s: &[u8]) -> Result<u32> {
     parse_dec_u64(s).map(|v| v as u32)
 }
 
+/// Fast hexadecimal integer parser over raw bytes.
+///
+/// Used by the `/proc/net` parsers where every field of every line is
+/// numeric. Unlike [`parse_hex_u64`] there is no UTF-8 round-trip or
+/// validation, and the result is truncated to the caller's target width
+/// with a plain cast. Returns `0` for empty or non-hex input rather than
+/// erroring, matching the `unwrap_or(0)` handling the net parsers use.
+#[inline]
+pub(crate) fn parse_hex_fast(s: &[u8]) -> u64 {
+    let mut value = 0;
+    for &byte in s {
+        let digit = match byte {
+            b'0'..=b'9' => byte - b'0',
+            b'a'..=b'f' => byte - b'a' + 10,
+            b'A'..=b'F' => byte - b'A' + 10,
+            _ => return 0,
+        };
+        value = (value << 4) | digit as u64;
+    }
+    value
+}
+
+/// Fast decimal integer parser over raw bytes.
+///
+/// The decimal counterpart of [`parse_hex_fast`]. Skips UTF-8 conversion
+/// and returns `0` for empty or non-digit input.
+#[inline]
+pub(crate) fn parse_dec_fast(s: &[u8]) -> u64 {
+    let mut value = 0;
+    for &byte in s {
+        if !byte.is_ascii_digit() {
+            return 0;
+        }
+        value = value * 10 + (byte - b'0') as u64;
+    }
+    value
+}
+
+/// Decodes a little-endian hex IPv4 address into bytes.
+///
+/// The kernel writes the address byte-for-byte reversed (`0100000A` is
+/// `10.0.0.1`), so the nibbles are read back-to-front. The result feeds
+/// straight into `Ipv4Addr::from`. The caller is expected to have already
+/// checked that the slice is exactly 8 hex digits.
+#[inline]
+pub(crate) fn decode_ipv4_fast(s: &[u8]) -> [u8; 4] {
+    [
+        hex_byte(s[6], s[7]),
+        hex_byte(s[4], s[5]),
+        hex_byte(s[2], s[3]),
+        hex_byte(s[0], s[1]),
+    ]
+}
+
+/// Decodes a little-endian hex IPv6 address into bytes.
+///
+/// The kernel stores the 128-bit address as four little-endian 32-bit
+/// words, each written byte-reversed like the IPv4 case. The result feeds
+/// straight into `Ipv6Addr::from`. The caller is expected to have already
+/// checked that the slice is exactly 32 hex digits.
+#[inline]
+pub(crate) fn decode_ipv6_fast(s: &[u8]) -> [u8; 16] {
+    let mut out = [0; 16];
+    let mut i = 0;
+    while i < 4 {
+        let offset = i * 8;
+        out[i * 4] = hex_byte(s[offset + 6], s[offset + 7]);
+        out[i * 4 + 1] = hex_byte(s[offset + 4], s[offset + 5]);
+        out[i * 4 + 2] = hex_byte(s[offset + 2], s[offset + 3]);
+        out[i * 4 + 3] = hex_byte(s[offset], s[offset + 1]);
+        i += 1;
+    }
+    out
+}
+
+/// Combines two hex nibbles into a byte.
+#[inline]
+fn hex_byte(high: u8, low: u8) -> u8 {
+    (hex_nibble(high) << 4) | hex_nibble(low)
+}
+
+/// Tests a byte against the ASCII hex alphabet and returns its value.
+///
+/// Branchless: the `(b | 0x20)` lowercases the letter so one comparison
+/// covers both cases, and `& 0x0f` extracts the low nibble for `0-9`.
+#[inline]
+fn hex_nibble(byte: u8) -> u8 {
+    (byte & 0x0f) + 9 * ((byte | 0x20) > b'9') as u8
+}
+
 /// Parses a decimal `i64` from a byte slice.
 ///
 /// Used for fields like `/proc/PID/stat`'s `cutime` and `cstime`

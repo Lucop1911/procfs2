@@ -75,13 +75,13 @@ pub fn route() -> impl Iterator<Item = Result<RouteEntry>> {
         let gateway = parse_hex_ipv4(fields[2]);
         let mask = parse_hex_ipv4(fields[7]);
 
-        let flags = parse::parse_hex_u64(fields[3]).unwrap_or(0) as u16;
-        let refcnt = parse::parse_dec_u64(fields[4]).unwrap_or(0) as u16;
-        let use_ = parse::parse_dec_u32(fields[5]).unwrap_or(0);
-        let metric = parse::parse_dec_u32(fields[6]).unwrap_or(0);
-        let mtu = parse::parse_dec_u32(fields[8]).unwrap_or(0);
-        let window = parse::parse_dec_u32(fields[9]).unwrap_or(0);
-        let irtt = parse::parse_dec_u32(fields[10]).unwrap_or(0);
+        let flags = parse::parse_hex_fast(fields[3]) as u16;
+        let refcnt = parse::parse_dec_fast(fields[4]) as u16;
+        let use_ = parse::parse_dec_fast(fields[5]) as u32;
+        let metric = parse::parse_dec_fast(fields[6]) as u32;
+        let mtu = parse::parse_dec_fast(fields[8]) as u32;
+        let window = parse::parse_dec_fast(fields[9]) as u32;
+        let irtt = parse::parse_dec_fast(fields[10]) as u32;
 
         entries.push(Ok(RouteEntry {
             iface,
@@ -110,5 +110,5 @@ fn parse_hex_ipv4(s: &[u8]) -> Ipv4Addr {
         return Ipv4Addr::UNSPECIFIED;
     }
 
-    Ipv4Addr::from((parse::parse_hex_u64(s).unwrap_or(0) as u32).to_le_bytes())
+    Ipv4Addr::from(parse::decode_ipv4_fast(s))
 }

@@ -65,11 +65,10 @@ pub fn arp() -> impl Iterator<Item = Result<ArpEntry>> {
             }
         };
 
-        let hw_type = parse::parse_hex_u64(fields[1]).unwrap_or(0) as u16;
-        let flags = parse::parse_hex_u64(fields[2]).unwrap_or(0) as u16;
+        let hw_type = parse::parse_hex_fast(fields[1].get(2..).unwrap_or(fields[1])) as u16;
+        let flags = parse::parse_hex_fast(fields[2].get(2..).unwrap_or(fields[2])) as u16;
 
-        let mac_str = std::str::from_utf8(fields[3]).unwrap_or("");
-        let mac = parse_mac(mac_str);
+        let mac = parse_mac(fields[3]);
 
         let device = std::str::from_utf8(fields[5])
             .unwrap_or("")
@@ -92,8 +91,7 @@ pub fn arp() -> impl Iterator<Item = Result<ArpEntry>> {
 ///
 /// Returns `[0; 6]` on parse failure rather than erroring, since
 /// incomplete ARP entries may have placeholder MAC addresses.
-fn parse_mac(s: &str) -> [u8; 6] {
-    let bytes = s.as_bytes();
+fn parse_mac(bytes: &[u8]) -> [u8; 6] {
     if bytes.len() != 17
         || bytes[2] != b':'
         || bytes[5] != b':'
@@ -106,7 +104,7 @@ fn parse_mac(s: &str) -> [u8; 6] {
 
     let mut mac = [0u8; 6];
     for i in 0..6 {
-        mac[i] = parse::parse_hex_u64(&bytes[i * 3..i * 3 + 2]).unwrap_or(0) as u8;
+        mac[i] = parse::parse_hex_fast(&bytes[i * 3..i * 3 + 2]) as u8;
     }
 
     mac
