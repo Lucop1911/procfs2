@@ -7,9 +7,9 @@
 #[cfg(test)]
 mod tests {
     use procfs2::proc::{
-        DeviceKind, Process, buddyinfo, cpuinfo, devices, diskstats, filesystems, interrupts,
-        iomem, ioports, loadavg, locks, meminfo, misc, modules, pagetypeinfo, partitions, softirqs,
-        stat, swaps, uptime, version, vmstat, zoneinfo,
+        DeviceKind, Process, buddyinfo, cpuinfo, crypto, devices, diskstats, filesystems,
+        interrupts, iomem, ioports, loadavg, locks, meminfo, misc, modules, pagetypeinfo,
+        partitions, softirqs, stat, swaps, uptime, version, vmstat, zoneinfo,
     };
     use procfs2::sys;
 
@@ -937,6 +937,41 @@ mod tests {
         assert!(
             mods.iter().any(|m| m.deps.as_ref() != "-"),
             "Should have at least one module with dependencies"
+        );
+    }
+
+    #[test]
+    fn test_live_crypto() {
+        let entries = crypto().expect("Failed to read /proc/crypto");
+        assert!(!entries.is_empty(), "Should have at least one crypto entry");
+    }
+
+    #[test]
+    fn test_live_crypto_fields() {
+        let entries = crypto().expect("Failed to read /proc/crypto");
+        for entry in &entries {
+            assert!(!entry.name.is_empty(), "Crypto name should not be empty");
+            assert!(
+                !entry.driver.is_empty(),
+                "Crypto driver should not be empty"
+            );
+            assert!(
+                !entry.crypto_type.is_empty(),
+                "Crypto type should not be empty"
+            );
+            let _ = entry.priority;
+            let _ = entry.ref_count;
+        }
+    }
+
+    #[test]
+    fn test_live_crypto_self_tests() {
+        let entries = crypto().expect("Failed to read /proc/crypto");
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.self_test.as_ref() == "passed"),
+            "Should have at least one passed crypto self-test"
         );
     }
 

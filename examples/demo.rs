@@ -395,6 +395,18 @@ fn main() {
         println!("  ... ({} more)", mods.len() - 10);
     }
 
+    println!("\n=== /proc/crypto (first 10) ===");
+    let crypto = proc::crypto().unwrap();
+    for c in crypto.iter().take(10) {
+        println!(
+            "  {:24} {:24} type={:<10} priority={}",
+            c.name, c.driver, c.crypto_type, c.priority
+        );
+    }
+    if crypto.len() > 10 {
+        println!("  ... ({} more)", crypto.len() - 10);
+    }
+
     println!("\n=== /proc/locks ===");
     let lock_list = proc::locks().unwrap();
     if lock_list.is_empty() {
