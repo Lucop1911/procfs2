@@ -50,16 +50,13 @@ pub fn route() -> impl Iterator<Item = Result<RouteEntry>> {
         Err(e) => return vec![Err(e)].into_iter(),
     };
 
-    let lines: Vec<&[u8]> = bytes
+    let mut entries = Vec::new();
+    for line in bytes
         .split(|&b| b == b'\n')
         .filter(|l| !l.is_empty())
         .skip(1)
-        .collect();
-
-    let mut entries = Vec::with_capacity(lines.len());
-
-    for line in lines {
-        let fields: Vec<&[u8]> = parse::split_spaces(line);
+    {
+        let fields = parse::SplitFields::<11>::new(line);
         if fields.len() < 11 {
             entries.push(Err(Error::Parse {
                 path: std::path::PathBuf::from(path),
@@ -113,12 +110,5 @@ fn parse_hex_ipv4(s: &[u8]) -> Ipv4Addr {
         return Ipv4Addr::UNSPECIFIED;
     }
 
-    let mut bytes = [0u8; 4];
-    for i in 0..4 {
-        let pair = &s[i * 2..i * 2 + 2];
-        bytes[3 - i] =
-            u8::from_str_radix(std::str::from_utf8(pair).unwrap_or("00"), 16).unwrap_or(0);
-    }
-
-    Ipv4Addr::from(bytes)
+    Ipv4Addr::from((parse::parse_hex_u64(s).unwrap_or(0) as u32).to_le_bytes())
 }

@@ -36,16 +36,13 @@ pub fn arp() -> impl Iterator<Item = Result<ArpEntry>> {
         Err(e) => return vec![Err(e)].into_iter(),
     };
 
-    let lines: Vec<&[u8]> = bytes
+    let mut entries = Vec::new();
+    for line in bytes
         .split(|&b| b == b'\n')
         .filter(|l| !l.is_empty())
         .skip(1)
-        .collect();
-
-    let mut entries = Vec::with_capacity(lines.len());
-
-    for line in lines {
-        let fields: Vec<&[u8]> = parse::split_spaces(line);
+    {
+        let fields = parse::SplitFields::<6>::new(line);
         if fields.len() < 6 {
             entries.push(Err(Error::Parse {
                 path: std::path::PathBuf::from(path),
@@ -96,14 +93,21 @@ pub fn arp() -> impl Iterator<Item = Result<ArpEntry>> {
 /// Returns `[0; 6]` on parse failure rather than erroring, since
 /// incomplete ARP entries may have placeholder MAC addresses.
 fn parse_mac(s: &str) -> [u8; 6] {
-    let parts: Vec<&str> = s.split(':').collect();
-    if parts.len() != 6 {
+    let bytes = s.as_bytes();
+    if bytes.len() != 17
+        || bytes[2] != b':'
+        || bytes[5] != b':'
+        || bytes[8] != b':'
+        || bytes[11] != b':'
+        || bytes[14] != b':'
+    {
         return [0; 6];
     }
 
     let mut mac = [0u8; 6];
-    for (i, part) in parts.iter().enumerate() {
-        mac[i] = u8::from_str_radix(part, 16).unwrap_or(0);
+    for i in 0..6 {
+        mac[i] = parse::parse_hex_u64(&bytes[i * 3..i * 3 + 2]).unwrap_or(0) as u8;
     }
+
     mac
 }

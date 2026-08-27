@@ -42,7 +42,7 @@ pub fn mounts() -> Result<Vec<Mount>> {
     let mut entries = Vec::new();
 
     for line in bytes.split(|&b| b == b'\n').filter(|l| !l.is_empty()) {
-        let fields: Vec<&[u8]> = parse::split_spaces(line);
+        let fields = parse::SplitFields::<6>::new(line);
         if fields.len() < 6 {
             return Err(Error::Parse {
                 path: std::path::PathBuf::from(path),

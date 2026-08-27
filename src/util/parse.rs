@@ -87,6 +87,14 @@ pub fn parse_hex_u64(s: &[u8]) -> Result<u64> {
         });
     }
     let s = if s.starts_with(b"0x") { &s[2..] } else { s };
+    if s.is_empty() {
+        return Err(Error::Parse {
+            path: std::path::PathBuf::from("<hex>"),
+            line: 0,
+            msg: "empty hex value",
+        });
+    }
+
     u64::from_str_radix(
         std::str::from_utf8(s).map_err(|_| Error::Parse {
             path: std::path::PathBuf::from("<hex>"),
@@ -112,6 +120,7 @@ pub fn parse_dec_u64(s: &[u8]) -> Result<u64> {
             msg: "empty decimal value",
         });
     }
+
     std::str::from_utf8(s)
         .map_err(|_| Error::Parse {
             path: std::path::PathBuf::from("<dec>"),

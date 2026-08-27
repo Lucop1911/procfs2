@@ -63,15 +63,12 @@ pub fn dev() -> impl Iterator<Item = Result<NetDevStat>> {
         Err(e) => return vec![Err(e)].into_iter(),
     };
 
-    let lines: Vec<&[u8]> = bytes
+    let mut entries = Vec::new();
+    for line in bytes
         .split(|&b| b == b'\n')
         .filter(|l| !l.is_empty())
-        .skip(2) // skip two-line header
-        .collect();
-
-    let mut entries = Vec::with_capacity(lines.len());
-
-    for line in lines {
+        .skip(2)
+    {
         let colon = match parse::memchr(b':', line) {
             Some(idx) => idx,
             None => {
@@ -92,7 +89,7 @@ pub fn dev() -> impl Iterator<Item = Result<NetDevStat>> {
             .into_boxed_str();
 
         let counters = parse::trim_start(&line[colon + 1..]);
-        let fields: Vec<&[u8]> = parse::split_spaces(counters);
+        let fields = parse::SplitFields::<16>::new(counters);
 
         if fields.len() < 16 {
             entries.push(Err(Error::Parse {

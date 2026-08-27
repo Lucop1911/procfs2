@@ -103,39 +103,18 @@ fn parse_ipv4(s: &[u8]) -> Result<SocketAddrV4> {
         });
     }
 
-    // Kernel stores IPv4 in little-endian hex, so we reverse the
-    // byte pairs: "0100007F" -> [0x7F, 0x00, 0x00, 0x01]
-    let mut bytes = [0u8; 4];
-    for i in 0..4 {
-        let pair = &addr_hex[i * 2..i * 2 + 2];
-        bytes[3 - i] = u8::from_str_radix(
-            std::str::from_utf8(pair).map_err(|_| Error::Parse {
-                path: std::path::PathBuf::from("<tcp>"),
-                line: 0,
-                msg: "invalid utf8 in addr",
-            })?,
-            16,
-        )
-        .map_err(|_| Error::Parse {
-            path: std::path::PathBuf::from("<tcp>"),
-            line: 0,
-            msg: "invalid hex byte",
-        })?;
-    }
+    let bytes = (parse::parse_hex_u64(addr_hex).map_err(|_| Error::Parse {
+        path: std::path::PathBuf::from("<tcp>"),
+        line: 0,
+        msg: "invalid IPv4 address",
+    })? as u32)
+        .to_le_bytes();
 
-    let port = u16::from_str_radix(
-        std::str::from_utf8(port_hex).map_err(|_| Error::Parse {
-            path: std::path::PathBuf::from("<tcp>"),
-            line: 0,
-            msg: "invalid utf8 in port",
-        })?,
-        16,
-    )
-    .map_err(|_| Error::Parse {
+    let port = parse::parse_hex_u64(port_hex).map_err(|_| Error::Parse {
         path: std::path::PathBuf::from("<tcp>"),
         line: 0,
         msg: "invalid port",
-    })?;
+    })? as u16;
 
     Ok(SocketAddrV4::new(std::net::Ipv4Addr::from(bytes), port))
 }
@@ -167,42 +146,20 @@ fn parse_ipv6(s: &[u8]) -> Result<SocketAddrV6> {
     }
 
     let mut bytes = [0u8; 16];
-    for i in 0..16 {
-        let pair = &addr_hex[i * 2..i * 2 + 2];
-        bytes[i] = u8::from_str_radix(
-            std::str::from_utf8(pair).map_err(|_| Error::Parse {
-                path: std::path::PathBuf::from("<tcp6>"),
-                line: 0,
-                msg: "invalid utf8 in addr",
-            })?,
-            16,
-        )
-        .map_err(|_| Error::Parse {
+    for i in 0..4 {
+        let word = parse::parse_hex_u64(&addr_hex[i * 8..i * 8 + 8]).map_err(|_| Error::Parse {
             path: std::path::PathBuf::from("<tcp6>"),
             line: 0,
-            msg: "invalid hex byte",
-        })?;
+            msg: "invalid IPv6 address",
+        })? as u32;
+        bytes[i * 4..i * 4 + 4].copy_from_slice(&word.to_le_bytes());
     }
 
-    // The kernel stores IPv6 as four 32-bit words in reverse order.
-    // Swap each 4-byte group.
-    for chunk in bytes.chunks_exact_mut(4) {
-        chunk.reverse();
-    }
-
-    let port = u16::from_str_radix(
-        std::str::from_utf8(port_hex).map_err(|_| Error::Parse {
-            path: std::path::PathBuf::from("<tcp6>"),
-            line: 0,
-            msg: "invalid utf8 in port",
-        })?,
-        16,
-    )
-    .map_err(|_| Error::Parse {
+    let port = parse::parse_hex_u64(port_hex).map_err(|_| Error::Parse {
         path: std::path::PathBuf::from("<tcp6>"),
         line: 0,
         msg: "invalid port",
-    })?;
+    })? as u16;
 
     Ok(SocketAddrV6::new(
         std::net::Ipv6Addr::from(bytes),
@@ -220,16 +177,14 @@ fn parse_tcp_file(path: &str, is_v6: bool) -> impl Iterator<Item = Result<TcpEnt
         Err(e) => return vec![Err(e)].into_iter(),
     };
 
-    let lines: Vec<&[u8]> = bytes
+    let mut entries = Vec::new();
+
+    for line in bytes
         .split(|&b| b == b'\n')
         .filter(|l| !l.is_empty())
-        .skip(1) // skip header
-        .collect();
-
-    let mut entries = Vec::with_capacity(lines.len());
-
-    for line in lines {
-        let fields: Vec<&[u8]> = parse::split_spaces(line);
+        .skip(1)
+    {
+        let fields = parse::SplitFields::<12>::new(line);
         if fields.len() < 12 {
             entries.push(Err(Error::Parse {
                 path: std::path::PathBuf::from(path),
@@ -301,18 +256,9 @@ fn parse_tcp_file(path: &str, is_v6: bool) -> impl Iterator<Item = Result<TcpEnt
         let state_code = parse::parse_hex_u64(fields[3]).unwrap_or(0) as u32;
         let state = TcpState::from_hex(state_code);
 
-        let rx_tx = fields[4];
-        let rx_tx_fields: Vec<&[u8]> = parse::split_spaces(rx_tx);
-        let rx_queue = if !rx_tx_fields.is_empty() {
-            parse::parse_hex_u64(rx_tx_fields[0]).unwrap_or(0) as u32
-        } else {
-            0
-        };
-        let tx_queue = if rx_tx_fields.len() >= 2 {
-            parse::parse_hex_u64(rx_tx_fields[1]).unwrap_or(0) as u32
-        } else {
-            0
-        };
+        let (tx_queue_raw, rx_queue_raw) = parse::split_at_byte(fields[4], b':');
+        let tx_queue = parse::parse_hex_u64(tx_queue_raw).unwrap_or(0) as u32;
+        let rx_queue = parse::parse_hex_u64(rx_queue_raw).unwrap_or(0) as u32;
 
         let uid = parse::parse_dec_u32(fields[7]).unwrap_or(0);
         let inode = parse::parse_dec_u64(fields[9]).unwrap_or(0);
@@ -359,16 +305,14 @@ pub fn parse_tcp6_entries() -> impl Iterator<Item = Result<Tcp6Entry>> {
         Err(e) => return vec![Err(e)].into_iter(),
     };
 
-    let lines: Vec<&[u8]> = bytes
+    let mut entries = Vec::new();
+
+    for line in bytes
         .split(|&b| b == b'\n')
         .filter(|l| !l.is_empty())
         .skip(1)
-        .collect();
-
-    let mut entries = Vec::with_capacity(lines.len());
-
-    for line in lines {
-        let fields: Vec<&[u8]> = parse::split_spaces(line);
+    {
+        let fields = parse::SplitFields::<12>::new(line);
         if fields.len() < 12 {
             entries.push(Err(Error::Parse {
                 path: std::path::PathBuf::from(path),
@@ -397,18 +341,9 @@ pub fn parse_tcp6_entries() -> impl Iterator<Item = Result<Tcp6Entry>> {
         let state_code = parse::parse_hex_u64(fields[3]).unwrap_or(0) as u32;
         let state = TcpState::from_hex(state_code);
 
-        let rx_tx = fields[4];
-        let rx_tx_fields: Vec<&[u8]> = parse::split_spaces(rx_tx);
-        let rx_queue = if !rx_tx_fields.is_empty() {
-            parse::parse_hex_u64(rx_tx_fields[0]).unwrap_or(0) as u32
-        } else {
-            0
-        };
-        let tx_queue = if rx_tx_fields.len() >= 2 {
-            parse::parse_hex_u64(rx_tx_fields[1]).unwrap_or(0) as u32
-        } else {
-            0
-        };
+        let (tx_queue_raw, rx_queue_raw) = parse::split_at_byte(fields[4], b':');
+        let tx_queue = parse::parse_hex_u64(tx_queue_raw).unwrap_or(0) as u32;
+        let rx_queue = parse::parse_hex_u64(rx_queue_raw).unwrap_or(0) as u32;
 
         let uid = parse::parse_dec_u32(fields[7]).unwrap_or(0);
         let inode = parse::parse_dec_u64(fields[9]).unwrap_or(0);

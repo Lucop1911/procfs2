@@ -44,16 +44,14 @@ pub fn unix() -> impl Iterator<Item = Result<UnixEntry>> {
         Err(e) => return vec![Err(e)].into_iter(),
     };
 
-    let lines: Vec<&[u8]> = bytes
+    let mut entries = Vec::new();
+
+    for line in bytes
         .split(|&b| b == b'\n')
         .filter(|l| !l.is_empty())
         .skip(1)
-        .collect();
-
-    let mut entries = Vec::with_capacity(lines.len());
-
-    for line in lines {
-        let fields: Vec<&[u8]> = parse::split_spaces(line);
+    {
+        let fields = parse::SplitFields::<8>::new(line);
 
         // /proc/net/unix has variable field counts. Minimum is 7
         // (without path), 8 with path.
