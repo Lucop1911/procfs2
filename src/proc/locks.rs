@@ -47,9 +47,9 @@ pub struct Lock {
     pub access: LockAccess,
     /// PID of the lock owner, or `-1` for OFD locks.
     pub pid: i32,
-    /// Major device number of the filesystem.
+    /// Major device number of the filesystem (reported in hexadecimal).
     pub major: u32,
-    /// Minor device number of the filesystem.
+    /// Minor device number of the filesystem (reported in hexadecimal).
     pub minor: u32,
     /// Inode number of the locked file.
     pub inode: u64,
@@ -134,17 +134,17 @@ pub fn locks() -> Result<Vec<Lock>> {
         let (major_b, rest) = parse::split_at_byte(fields[5], b':');
         let (minor_b, inode_b) = parse::split_at_byte(rest, b':');
 
-        let major = parse::parse_dec_u32(major_b).map_err(|_| Error::Parse {
+        let major = parse::parse_hex_u64(major_b).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid major",
-        })?;
+        })? as u32;
 
-        let minor = parse::parse_dec_u32(minor_b).map_err(|_| Error::Parse {
+        let minor = parse::parse_hex_u64(minor_b).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid minor",
-        })?;
+        })? as u32;
 
         let inode = parse::parse_dec_u64(inode_b).map_err(|_| Error::Parse {
             path: path.to_path_buf(),

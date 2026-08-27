@@ -395,18 +395,6 @@ fn main() {
         println!("  ... ({} more)", mods.len() - 10);
     }
 
-    println!("\n=== /proc/crypto (first 10) ===");
-    let crypto = proc::crypto().unwrap();
-    for c in crypto.iter().take(10) {
-        println!(
-            "  {:24} {:24} type={:<10} priority={}",
-            c.name, c.driver, c.crypto_type, c.priority
-        );
-    }
-    if crypto.len() > 10 {
-        println!("  ... ({} more)", crypto.len() - 10);
-    }
-
     println!("\n=== /proc/locks ===");
     let lock_list = proc::locks().unwrap();
     if lock_list.is_empty() {
@@ -421,6 +409,18 @@ fn main() {
             "  {:?} {:?} {:?} pid={:<7} {:>2}:{:<2}:{:<10} {}-{}",
             l.lock_type, l.class, l.access, l.pid, l.major, l.minor, l.inode, l.start, end
         );
+    }
+
+    println!("\n=== /proc/crypto (first 10) ===");
+    let crypto = proc::crypto().unwrap();
+    for c in crypto.iter().take(10) {
+        println!(
+            "  {:24} {:24} type={:<10} priority={}",
+            c.name, c.driver, c.crypto_type, c.priority
+        );
+    }
+    if crypto.len() > 10 {
+        println!("  ... ({} more)", crypto.len() - 10);
     }
 
     println!("\n=== /proc/net/tcp ===");
