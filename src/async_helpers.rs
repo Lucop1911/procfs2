@@ -1,5 +1,3 @@
-#![cfg(feature = "async")]
-
 //! Async I/O helpers for procfs2.
 //!
 //! This module provides async variants of file reading operations using tokio.

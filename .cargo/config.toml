@@ -1,5 +1,5 @@
 [alias]
 b = ["build", "--all-features"]
-t = ["test", "--all-features"]
-c = ["clippy", "--all-features"]
+t = ["test", "--all-features", "--all-targets"]
+c = ["clippy", "--all-features", "--all-targets"]
 r = ["run", "--all-features"]
