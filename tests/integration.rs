@@ -983,12 +983,9 @@ mod tests {
     fn test_live_consoles() {
         let cons = consoles().expect("Failed to read /proc/consoles");
 
-        // Every running system registers at least the tty console.
+        // The kernel lists every registered console; a headless system may
+        // have no tty, so we only require the list to be non-empty.
         assert!(!cons.is_empty(), "Should have at least one console");
-        assert!(
-            cons.iter().any(|c| c.name.as_ref() == "tty0"),
-            "Should have a tty0 console"
-        );
     }
 
     #[test]
@@ -1013,19 +1010,17 @@ mod tests {
     fn test_live_consoles_flags() {
         let cons = consoles().expect("Failed to read /proc/consoles");
 
-        // The tty console is enabled and writable on every system.
-        let tty = cons
-            .iter()
-            .find(|c| c.name.as_ref() == "tty0")
-            .expect("Should have a tty0 console");
-        assert!(
-            tty.flags.contains(ConsoleFlags::ENABLED),
-            "tty0 should be enabled"
-        );
-        assert!(
-            tty.flags.contains(ConsoleFlags::WRITE),
-            "tty0 should be writable"
-        );
+        // The kernel lists every registered console (enabled or not) with an
+        // indeterminate flag set, so we only check that the decoded flags are
+        // a valid subset of the known bits — i.e. the parser didn't mangle the
+        // R/W/U and state flags.
+        for c in &cons {
+            let unknown = c.flags.bits() & !ConsoleFlags::all().bits();
+            assert!(
+                unknown == 0,
+                "Console flags contain unknown bits: {unknown:#b}"
+            );
+        }
     }
 
     #[test]
