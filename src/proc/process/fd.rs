@@ -7,7 +7,7 @@
 /// - Pipes → `pipe:[<inode>]`
 /// - Anonymous inodes → `anon_inode:<kind>`
 /// - memfd → `/memfd:<name>`
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FdTarget {
     /// A regular file or device node.
     File(std::path::PathBuf),
