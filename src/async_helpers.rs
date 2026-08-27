@@ -62,19 +62,3 @@ pub async fn read_to_string(path: impl AsRef<Path>) -> Result<String> {
         error: e,
     })
 }
-
-/// Asynchronously reads a file and parses it as key-value data.
-///
-/// This is useful for async reading of `/proc` and `/sys` files that
-/// follow the `Key: Value` format.
-///
-/// # Arguments
-///
-/// * `path` - The path to the file to read
-///
-/// # Errors
-///
-/// Returns an error if the file cannot be read.
-pub async fn read_file_as_bytes(path: impl AsRef<Path>) -> Result<Vec<u8>> {
-    read_file(path).await
-}
