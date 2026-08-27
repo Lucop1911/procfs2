@@ -219,11 +219,21 @@ fn main() {
         );
         println!(
             "    discards: {} completed, {} merged, {} sectors, {} ms",
-            s.discards_completed, s.discards_merged, s.sectors_discarded, s.time_discarding.0
+            s.discards_completed
+                .map_or_else(|| "-".to_string(), |v| v.to_string()),
+            s.discards_merged
+                .map_or_else(|| "-".to_string(), |v| v.to_string()),
+            s.sectors_discarded
+                .map_or_else(|| "-".to_string(), |v| v.to_string()),
+            s.time_discarding
+                .map_or_else(|| "-".to_string(), |v| v.0.to_string())
         );
         println!(
             "    flush: {} completed, {} ms",
-            s.flush_completed, s.time_flushing.0
+            s.flush_completed
+                .map_or_else(|| "-".to_string(), |v| v.to_string()),
+            s.time_flushing
+                .map_or_else(|| "-".to_string(), |v| v.0.to_string())
         );
     }
 

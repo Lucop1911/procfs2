@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::error::{Error, KernelVersion, Result};
+use crate::error::{Error, Result};
 use crate::util::Milliseconds;
 use crate::util::parse::{self, parse_dec_u32, parse_dec_u64};
 
@@ -35,32 +35,28 @@ pub struct DiskStat {
     /// Weighted time doing I/O (ms).
     pub weighted_time_io: Milliseconds,
     /// Discard I/Os completed.
-    pub discards_completed: u64,
+    pub discards_completed: Option<u64>,
     /// Discard I/Os merged.
-    pub discards_merged: u64,
+    pub discards_merged: Option<u64>,
     /// 512-byte sectors discarded.
-    pub sectors_discarded: u64,
+    pub sectors_discarded: Option<u64>,
     /// Time spent discarding (ms).
-    pub time_discarding: Milliseconds,
+    pub time_discarding: Option<Milliseconds>,
     /// Flush requests completed.
-    pub flush_completed: u64,
+    pub flush_completed: Option<u64>,
     /// Time spent flushing (ms).
-    pub time_flushing: Milliseconds,
+    pub time_flushing: Option<Milliseconds>,
 }
 
 /// Reads `/proc/diskstats` and returns per-device I/O statistics.
 ///
 /// The file has no header: one whitespace-aligned line per block
-/// device and partition, holding `major minor name` followed by 17
-/// numeric statistics. It lists the whole device (`sda`, `nvme0n1`)
+/// device and partition, holding `major minor name` followed by at
+/// least 11 numeric statistics. Discard and flush statistics are
+/// optional because they were added by later kernel versions. It lists
+/// the whole device (`sda`, `nvme0n1`)
 /// as well as each of its partitions (`sda1`, `nvme0n1p2`).
-///
-/// Requires kernel 5.5 or newer, which added the flush request
-/// fields at the end of each line. On older kernels this returns
-/// [`Error::UnsupportedKernel`].
 pub fn diskstats() -> Result<Vec<DiskStat>> {
-    KernelVersion::current()?.require(5, 5)?;
-
     let path = Path::new("/proc/diskstats");
     let bytes = parse::read_file(path)?;
 
@@ -73,11 +69,11 @@ pub fn diskstats() -> Result<Vec<DiskStat>> {
     {
         let fields = parse::SplitFields::<20>::new(line);
 
-        if fields.len() != 20 {
+        if fields.len() < 14 || fields.len() > 20 {
             return Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: line_num + 1,
-                msg: "expected '<major> <minor> <name> <17 stat fields>'",
+                msg: "expected '<major> <minor> <name> <11-17 stat fields>'",
             });
         }
 
@@ -166,42 +162,25 @@ pub fn diskstats() -> Result<Vec<DiskStat>> {
                 msg: "invalid weighted time io",
             })?);
 
-        let discards_completed = parse_dec_u64(fields[14]).map_err(|_| Error::Parse {
-            path: path.to_path_buf(),
-            line: line_num + 1,
-            msg: "invalid discards completed",
-        })?;
-
-        let discards_merged = parse_dec_u64(fields[15]).map_err(|_| Error::Parse {
-            path: path.to_path_buf(),
-            line: line_num + 1,
-            msg: "invalid discards merged",
-        })?;
-
-        let sectors_discarded = parse_dec_u64(fields[16]).map_err(|_| Error::Parse {
-            path: path.to_path_buf(),
-            line: line_num + 1,
-            msg: "invalid sectors discarded",
-        })?;
-
-        let time_discarding =
-            Milliseconds(parse_dec_u64(fields[17]).map_err(|_| Error::Parse {
-                path: path.to_path_buf(),
-                line: line_num + 1,
-                msg: "invalid time discarding",
-            })?);
-
-        let flush_completed = parse_dec_u64(fields[18]).map_err(|_| Error::Parse {
-            path: path.to_path_buf(),
-            line: line_num + 1,
-            msg: "invalid flush completed",
-        })?;
-
-        let time_flushing = Milliseconds(parse_dec_u64(fields[19]).map_err(|_| Error::Parse {
-            path: path.to_path_buf(),
-            line: line_num + 1,
-            msg: "invalid time flushing",
-        })?);
+        let parse_optional = |index, msg| {
+            if index < fields.len() {
+                Ok(Some(parse_dec_u64(fields[index]).map_err(|_| {
+                    Error::Parse {
+                        path: path.to_path_buf(),
+                        line: line_num + 1,
+                        msg,
+                    }
+                })?))
+            } else {
+                Ok(None)
+            }
+        };
+        let discards_completed = parse_optional(14, "invalid discards completed")?;
+        let discards_merged = parse_optional(15, "invalid discards merged")?;
+        let sectors_discarded = parse_optional(16, "invalid sectors discarded")?;
+        let time_discarding = parse_optional(17, "invalid time discarding")?.map(Milliseconds);
+        let flush_completed = parse_optional(18, "invalid flush completed")?;
+        let time_flushing = parse_optional(19, "invalid time flushing")?.map(Milliseconds);
 
         out.push(DiskStat {
             major,
