@@ -11,10 +11,11 @@ A modern, zero-copy, strongly-typed Rust library for reading Linux's `/proc` and
 
 - **Typed API** — Every kernel file maps to a concrete Rust struct or enum
 - **Zero-copy where possible** — Parse directly from `&[u8]` slices
-- **Complete `/proc` coverage** — System-wide, per-process, network, cgroups
+- **Broad `/proc` coverage** — System-wide, per-process, network, cgroups
 - **First-class `/sys` support** — Block devices, network interfaces, power supply, CPU info
-- **Async-friendly** — Optional tokio-backed async variants
-- **Runtime-safe** — No panics; all errors returned as typed `Error` variants
+- **Native async support** — Not just async file reads: a generic polling combinator (`watch()`) turns any snapshot function into a `Stream`, plus purpose-built delta-streaming for cumulative counters (see [Live Monitoring](#live-monitoring--async-delta-streaming))
+- **Granular, typed errors** — Distinguishes *why* an operation failed (process exited mid-read, unsupported kernel, permission denied, malformed data at a specific line) instead of a single generic I/O failure
+- **Runtime-safe** — No panics in the core parsing paths; all errors returned as typed `Error` variants
 
 ## Quick Start
 
@@ -69,6 +70,40 @@ fn main() -> procfs2::Result<()> {
 }
 ```
 
+## Live Monitoring / Async Delta-Streaming
+
+Most `/proc` counters (network bytes, disk I/O, CPU jiffies) are cumulative — what you usually want is a *rate*, not a raw snapshot. procfs2 provides this as a first-class primitive instead of leaving it to every caller to reimplement "read twice, subtract, divide by elapsed time."
+
+```rust, ignore
+use futures_util::StreamExt;
+use procfs2::async_helpers::{self, read_to_string};
+use std::time::Duration;
+
+#[tokio::main]
+async fn main() {
+    let uptime = async_helpers::watch(Duration::from_secs(1), || async {
+        read_to_string("/proc/uptime").await
+    });
+    tokio::pin!(uptime);
+
+    while let Some(sample) = uptime.next().await {
+        match sample {
+            Ok(snapshot) => print!("uptime: {snapshot}"),
+            Err(error) => {
+                eprintln!("failed to read /proc/uptime: {error}");
+                break;
+            }
+        }
+    }
+}
+```
+
+`async_helpers::watch()` is a generic polling combinator — it accepts any `async fn() -> Result<T>` and turns it into a `Stream<Item = Result<T>>` on a fixed interval. Layer `Sampler<T>` on top for automatic, wraparound-safe delta computation between consecutive snapshots (see `watch_net_dev` for a full example with `/proc/net/dev`).
+
+This requires the `async` feature. procfs has no async or streaming API at all — everything above is a pattern procfs2 supports natively rather than something you'd hand-roll on top of a sync-only crate.
+
+> **Note on inotify:** Linux's `inotify` does not reliably fire on most `/proc` entries — the kernel allocates a fresh inode on most procfs opens, which inotify can't attach persistent watches to. procfs2 includes an inotify `Watcher` (under the `watch` feature) for watching *regular* files, but `/proc` monitoring should go through `async_helpers::watch()` above, not inotify.
+
 ## Installation
 
 Add to your `Cargo.toml`:
@@ -90,8 +125,8 @@ features = ["async", "serde", "macros", "watch"]
 
 | Feature | Description | Extra Dependencies |
 |---------|-------------|-------------------|
-| `async` | Async read variants + async inotify | `tokio` |
-| `watch` | `inotify` watcher API | `libc` |
+| `async` | Async read variants, generic `watch()` polling combinator, delta-streaming (`Sampler`, `NetDeltaSample`) | `tokio` |
+| `watch` | `inotify`-based `Watcher` API for regular files | `libc` |
 | `serde` | `Serialize`/`Deserialize` on all structs | `serde` |
 | `macros` | `#[derive(ProcKeyValue)]` proc-macro | `procfs2-macros` |
 
@@ -107,7 +142,7 @@ features = ["async", "serde", "macros", "watch"]
 - `proc::cpuinfo()` — `Vec<CpuCore>` from `/proc/cpuinfo`
 - `proc::version()` — `KernelVersion` from `/proc/version`
 - `proc::mounts()` — `Vec<Mount>` from `/proc/mounts`
-- `proc::cgoups()` — `Vec<Cgroup>` from `/proc/cgroups`
+- `proc::cgroups()` — `Vec<Cgroup>` from `/proc/cgroups`
 
 #### Per-Process (`Process`)
 ```rust
@@ -182,17 +217,29 @@ fn main() -> procfs2::Result<()> {
 
 ## Error Handling
 
-All operations return `procfs2::Result<T>` which is `Result<T, procfs2::Error>`:
+All operations return `procfs2::Result<T>`, which is `Result<T, procfs2::Error>`. Errors are structured by cause rather than collapsed into a single generic I/O failure — a caller can distinguish, for example, "the process exited mid-read" from "this kernel doesn't support this file" from "malformed data on line N," and handle each differently:
 
 ```rust
 pub enum Error {
-    Io(std::io::Error),
+    /// Wrapped I/O failure. `path` is the file involved, when there is one
+    /// (some operations, like inotify fd errors, have no single associated path).
+    Io { path: Option<std::path::PathBuf>, error: std::io::Error },
+
+    /// A parsing failure at a specific line of a specific file.
     Parse { path: std::path::PathBuf, line: usize, msg: &'static str },
+
+    /// The target process exited between discovering its PID and opening its `/proc/PID` entry.
     ProcessGone(u32),
+
+    /// Insufficient permissions to read a `/proc` or `/sys` path.
     PermissionDenied(std::path::PathBuf),
+
+    /// The running kernel doesn't meet the minimum version required for a feature.
     UnsupportedKernel { required: procfs2::KernelVersion, found: procfs2::KernelVersion },
 }
 ```
+
+Where kernel formats evolve incrementally (e.g. `/proc/diskstats` gaining trailing fields on newer kernels), procfs2 prefers detecting the file's actual shape over hard version-gating — so a file with fewer fields on an older kernel returns partial data (`Option<T>` on the newer fields) instead of failing outright.
 
 ## Minimum Supported Rust Version
 
@@ -232,6 +279,13 @@ A small CLI that dumps system info is included as an example:
 
 ```bash
 cargo run --example demo
+```
+
+Async delta-streaming and inotify examples are also included:
+
+```bash
+cargo run --example async_watch --features async
+cargo run --example watch --features watch
 ```
 
 ### Running Benchmarks
