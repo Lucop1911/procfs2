@@ -9,13 +9,13 @@ A modern, zero-copy, strongly-typed Rust library for reading Linux's `/proc` and
 
 ## Features
 
+- **Native async support** — Not just async file reads: a generic polling combinator (`watch()`) turns any snapshot function into a `Stream`, plus purpose-built delta-streaming for cumulative counters (see [Live Monitoring](#live-monitoring--async-delta-streaming))
+- **Granular, typed errors** — Distinguishes *why* an operation failed (process exited mid-read, unsupported kernel, permission denied, malformed data at a specific line) instead of a single generic I/O failure
+- **Runtime-safe** — No panics in the core parsing paths; all errors returned as typed `Error` variants
 - **Typed API** — Every kernel file maps to a concrete Rust struct or enum
 - **Zero-copy where possible** — Parse directly from `&[u8]` slices
 - **Broad `/proc` coverage** — System-wide, per-process, network, cgroups
 - **First-class `/sys` support** — Block devices, network interfaces, power supply, CPU info
-- **Native async support** — Not just async file reads: a generic polling combinator (`watch()`) turns any snapshot function into a `Stream`, plus purpose-built delta-streaming for cumulative counters (see [Live Monitoring](#live-monitoring--async-delta-streaming))
-- **Granular, typed errors** — Distinguishes *why* an operation failed (process exited mid-read, unsupported kernel, permission denied, malformed data at a specific line) instead of a single generic I/O failure
-- **Runtime-safe** — No panics in the core parsing paths; all errors returned as typed `Error` variants
 
 ## Quick Start
 
@@ -98,7 +98,7 @@ async fn main() {
 }
 ```
 
-`async_helpers::watch()` is a generic polling combinator — it accepts any `async fn() -> Result<T>` and turns it into a `Stream<Item = Result<T>>` on a fixed interval. Layer `Sampler<T>` on top for automatic, wraparound-safe delta computation between consecutive snapshots (see `watch_net_dev` for a full example with `/proc/net/dev`).
+`async_helpers::watch()` is a generic polling combinator — it accepts any `async fn() -> Result<T>` and turns it into a `Stream<Item = Result<T>>` on a fixed interval. Layer `Sampler<T>` on top for automatic, wraparound-safe delta computation between consecutive snapshots.
 
 This requires the `async` feature. procfs has no async or streaming API at all — everything above is a pattern procfs2 supports natively rather than something you'd hand-roll on top of a sync-only crate.
 
