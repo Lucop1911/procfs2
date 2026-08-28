@@ -14,8 +14,10 @@
 //! ```
 
 use std::path::Path;
+use std::time::Duration;
+use std::{future::Future, io};
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 
 /// Asynchronously reads the entire contents of a file into a vector of bytes.
 ///
@@ -61,4 +63,43 @@ pub async fn read_to_string(path: impl AsRef<Path>) -> Result<String> {
             path: Some(path),
             error: e,
         })
+}
+
+/// Polls an asynchronous snapshot function and yields each result.
+///
+/// Polling starts immediately. If the callback returns an error, the stream
+/// yields it and ends.
+pub fn watch<T, F, Fut>(
+    period: Duration,
+    mut snapshot: F,
+) -> impl futures_core::Stream<Item = Result<T>>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T>>,
+{
+    async_stream::stream! {
+        if period.is_zero() {
+            yield Err(Error::Io {
+                path: None,
+                error: io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "polling period must be non-zero",
+                ),
+            });
+            return;
+        }
+
+        let mut ticker = tokio::time::interval(period);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            ticker.tick().await;
+            match snapshot().await {
+                Ok(value) => yield Ok(value),
+                Err(error) => {
+                    yield Err(error);
+                    return;
+                }
+            }
+        }
+    }
 }

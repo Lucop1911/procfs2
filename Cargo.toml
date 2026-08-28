@@ -17,7 +17,9 @@ categories = ["filesystem", "os", "parsing"]
 [dependencies]
 bitflags = "2.13.1"
 libc = { version = "0.2.189", optional = true }
-tokio = { version = "1.53.1", features = ["fs", "net"], optional = true }
+tokio = { version = "1.53.1", features = ["fs", "net", "time"], optional = true }
+async-stream = { version = "0.3.6", optional = true }
+futures-core = { version = "0.3.34", optional = true }
 serde = { version = "1.0.229", features = ["derive"], optional = true }
 procfs2-macros = { path = "./procfs2-macros", version = "0.1.0", optional = true }
 
@@ -27,12 +29,13 @@ harness = false
 
 [dev-dependencies]
 criterion = "0.8.2"
+futures-util = "0.3.31"
 procfs = "0.18.0"
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }
 
 [features]
 default = []
-async = ["dep:tokio"]
+async = ["dep:tokio", "dep:async-stream", "dep:futures-core"]
 watch = ["dep:libc"]
 serde = ["dep:serde"]
 macros = ["dep:procfs2-macros"]
@@ -40,6 +43,14 @@ macros = ["dep:procfs2-macros"]
 [[example]]
 name = "async"
 required-features = ["async"]
+
+[[example]]
+name = "async_watch"
+required-features = ["async"]
+
+[[example]]
+name = "watch"
+required-features = ["watch"]
 
 [[example]]
 name = "macros"
