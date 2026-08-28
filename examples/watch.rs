@@ -17,10 +17,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut watcher = Watcher::new()?;
     let handle = watcher.watch(&path)?;
-    println!("watching {:?} (descriptor {})", path, handle.watch_descriptor());
+    println!(
+        "watching {:?} (descriptor {})",
+        path,
+        handle.watch_descriptor()
+    );
 
     // trigger a real event
-    std::fs::OpenOptions::new().append(true).open(&path)?.write_all(b" updated")?;
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)?
+        .write_all(b" updated")?;
 
     let event = watcher.next_event()?;
     println!("event: {event:?}");

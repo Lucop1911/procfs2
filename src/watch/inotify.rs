@@ -118,7 +118,10 @@ impl Watcher {
 
         // Store the path for later lookup
         let path_buf = std::path::Path::new(&path).to_path_buf();
-        self.watches.lock().unwrap_or_else(|e| e.into_inner()).insert(wd as u32, path_buf);
+        self.watches
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(wd as u32, path_buf);
 
         Ok(WatchHandle {
             wd: wd as u32,
@@ -230,7 +233,12 @@ impl Watcher {
             offset += aligned;
 
             // Build path: if watch path exists and name present, join
-            let base_path = self.watches.lock().unwrap_or_else(|e| e.into_inner()).get(&(ev.wd as u32)).cloned();
+            let base_path = self
+                .watches
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .get(&(ev.wd as u32))
+                .cloned();
 
             let full_path = match (&base_path, &name) {
                 (Some(bp), Some(nm)) => Some(bp.join(nm)),
@@ -283,7 +291,10 @@ impl Watcher {
             });
         }
 
-        self.watches.lock().unwrap_or_else(|e| e.into_inner()).remove(&wd);
+        self.watches
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&wd);
         Ok(())
     }
 }
