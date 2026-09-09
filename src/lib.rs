@@ -32,5 +32,8 @@ pub use util::{Bytes, Jiffies, Kibibytes, Milliseconds, Pages};
 #[cfg(feature = "async")]
 pub use tokio;
 
+#[cfg(feature = "async")]
+pub use futures_core;
+
 #[cfg(feature = "serde")]
 pub use serde;

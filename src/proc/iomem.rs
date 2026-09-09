@@ -25,7 +25,7 @@ pub struct IoMem {
 /// regions in file order.
 ///
 /// The file uses indentation (two spaces per level) to express a
-/// tree of memory regions. The result is flat with a [`depth`](IoMemEntry::depth)
+/// tree of memory regions. The result is flat with a [`IoMem::depth`]
 /// field so callers can reconstruct the hierarchy or just iterate
 /// linearly. Addresses are parsed as hex without the `0x` prefix.
 pub fn iomem() -> Result<Vec<IoMem>> {

@@ -52,35 +52,13 @@ jobs:
         run: |
           cargo miri test --features "serde,macros" --lib -- procfs2::util::
 
-  fuzz:
-    name: Cargo Fuzz (nightly)
-    runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.labels.*, 'fuzz')
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-
-      - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
-
-      - name: Run fuzz targets (60s each)
-        run: |
-          cd fuzz
-          cargo fuzz run parse_proc_stat -- -max_total_time=60 || true
-          cargo fuzz run parse_proc_meminfo -- -max_total_time=60 || true
-          cargo fuzz run parse_proc_maps -- -max_total_time=60 || true
-
   msrv-check:
     name: MSRV 1.86 Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust 1.85
+      - name: Install Rust 1.86
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.86.0"

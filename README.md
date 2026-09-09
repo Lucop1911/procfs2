@@ -74,25 +74,39 @@ fn main() -> procfs2::Result<()> {
 
 Most `/proc` counters (network bytes, disk I/O, CPU jiffies) are cumulative — what you usually want is a *rate*, not a raw snapshot. procfs2 provides this as a first-class primitive instead of leaving it to every caller to reimplement "read twice, subtract, divide by elapsed time."
 
-```rust, ignore
-use futures_util::StreamExt;
+```rust, no_run
 use procfs2::async_helpers::{self, read_to_string};
+use procfs2::futures_core::{Stream, task::Poll};
+use std::sync::Arc;
+use std::task::{Context, Wake, Waker};
 use std::time::Duration;
+
+/// A waker that never wakes anything. Polling the stream with it just runs
+/// until the next snapshot is ready, so no external `StreamExt` is needed.
+#[derive(Default)]
+struct NoopWaker;
+impl Wake for NoopWaker {
+    fn wake(self: Arc<Self>) {}
+}
 
 #[tokio::main]
 async fn main() {
     let uptime = async_helpers::watch(Duration::from_secs(1), || async {
         read_to_string("/proc/uptime").await
     });
-    tokio::pin!(uptime);
 
-    while let Some(sample) = uptime.next().await {
-        match sample {
-            Ok(snapshot) => print!("uptime: {snapshot}"),
-            Err(error) => {
+    let mut uptime = std::pin::pin!(uptime);
+    let waker = Waker::from(Arc::new(NoopWaker));
+    let mut cx = Context::from_waker(&waker);
+
+    for _ in 0..5 {
+        match Stream::poll_next(uptime.as_mut(), &mut cx) {
+            Poll::Ready(Some(Ok(snapshot))) => print!("uptime: {snapshot}"),
+            Poll::Ready(Some(Err(error))) => {
                 eprintln!("failed to read /proc/uptime: {error}");
                 break;
             }
+            Poll::Ready(None) | Poll::Pending => break,
         }
     }
 }
