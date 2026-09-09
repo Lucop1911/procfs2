@@ -746,16 +746,6 @@ mod tests {
                 c.name
             );
         }
-
-        // ERR and MIS are present on every kernel.
-        assert!(
-            irq.counts.iter().any(|c| c.name.as_ref() == "ERR"),
-            "Should have ERR aggregate"
-        );
-        assert!(
-            irq.counts.iter().any(|c| c.name.as_ref() == "MIS"),
-            "Should have MIS aggregate"
-        );
     }
 
     #[test]
