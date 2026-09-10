@@ -448,6 +448,40 @@ fn main() {
         );
     }
 
+    println!("\n=== /proc/pressure ===");
+    let cpu_psi = proc::cpu_pressure().unwrap();
+    println!(
+        "  CPU   some: avg10={:.2} avg60={:.2} avg300={:.2} total={}",
+        cpu_psi.some.avg10, cpu_psi.some.avg60, cpu_psi.some.avg300, cpu_psi.some.total
+    );
+    println!(
+        "        full: avg10={:.2} avg60={:.2} avg300={:.2} total={}",
+        cpu_psi.full.avg10, cpu_psi.full.avg60, cpu_psi.full.avg300, cpu_psi.full.total
+    );
+    let mem_psi = proc::memory_pressure().unwrap();
+    println!(
+        "  Mem   some: avg10={:.2} avg60={:.2} avg300={:.2} total={}",
+        mem_psi.some.avg10, mem_psi.some.avg60, mem_psi.some.avg300, mem_psi.some.total
+    );
+    println!(
+        "        full: avg10={:.2} avg60={:.2} avg300={:.2} total={}",
+        mem_psi.full.avg10, mem_psi.full.avg60, mem_psi.full.avg300, mem_psi.full.total
+    );
+    let io_psi = proc::io_pressure().unwrap();
+    println!(
+        "  IO    some: avg10={:.2} avg60={:.2} avg300={:.2} total={}",
+        io_psi.some.avg10, io_psi.some.avg60, io_psi.some.avg300, io_psi.some.total
+    );
+    println!(
+        "        full: avg10={:.2} avg60={:.2} avg300={:.2} total={}",
+        io_psi.full.avg10, io_psi.full.avg60, io_psi.full.avg300, io_psi.full.total
+    );
+    let irq_psi = proc::irq_pressure().unwrap();
+    println!(
+        "  IRQ   full: avg10={:.2} avg60={:.2} avg300={:.2} total={}",
+        irq_psi.full.avg10, irq_psi.full.avg60, irq_psi.full.avg300, irq_psi.full.total
+    );
+
     println!("\n=== /proc/net/tcp ===");
     let tcp_conns: Vec<_> = proc::net::tcp().collect();
     println!("Active TCP connections: {}", tcp_conns.len());

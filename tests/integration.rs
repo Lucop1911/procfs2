@@ -7,9 +7,10 @@
 #[cfg(test)]
 mod tests {
     use procfs2::proc::{
-        ConsoleFlags, DeviceKind, Process, buddyinfo, consoles, cpuinfo, crypto, devices,
-        diskstats, filesystems, interrupts, iomem, ioports, loadavg, locks, meminfo, misc, modules,
-        pagetypeinfo, partitions, softirqs, stat, swaps, uptime, version, vmstat, zoneinfo,
+        ConsoleFlags, DeviceKind, Process, buddyinfo, consoles, cpu_pressure, cpuinfo, crypto,
+        devices, diskstats, filesystems, interrupts, io_pressure, iomem, ioports, irq_pressure,
+        loadavg, locks, meminfo, memory_pressure, misc, modules, pagetypeinfo, partitions,
+        softirqs, stat, swaps, uptime, version, vmstat, zoneinfo,
     };
     use procfs2::sys;
 
@@ -1058,6 +1059,39 @@ mod tests {
                 l.lock_type,
             );
         }
+    }
+
+    #[test]
+    fn test_live_cpu_pressure() {
+        let psi = cpu_pressure().expect("Failed to read /proc/pressure/cpu");
+
+        // Averages are percentages in [0, 100]; total is microseconds.
+        assert!(psi.some.avg10 >= 0.0, "avg10 should be >= 0");
+        assert!(psi.full.avg10 >= 0.0, "full avg10 should be >= 0");
+        let _ = psi.some.total;
+    }
+
+    #[test]
+    fn test_live_memory_and_io_pressure() {
+        let mem = memory_pressure().expect("Failed to read /proc/pressure/memory");
+        let io = io_pressure().expect("Failed to read /proc/pressure/io");
+
+        // Both files report `some` and `full` lines.
+        assert!(mem.some.avg10 >= 0.0);
+        assert!(mem.full.avg10 >= 0.0);
+        assert!(io.some.avg10 >= 0.0);
+        assert!(io.full.avg10 >= 0.0);
+    }
+
+    #[test]
+    fn test_live_irq_pressure() {
+        let psi = irq_pressure().expect("Failed to read /proc/pressure/irq");
+
+        // IRQ only reports `full`; averages are non-negative percentages.
+        assert!(psi.full.avg10 >= 0.0, "avg10 should be >= 0");
+        assert!(psi.full.avg60 >= 0.0, "avg60 should be >= 0");
+        assert!(psi.full.avg300 >= 0.0, "avg300 should be >= 0");
+        let _ = psi.full.total;
     }
 
     #[test]
