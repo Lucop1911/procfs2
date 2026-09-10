@@ -1085,7 +1085,16 @@ mod tests {
 
     #[test]
     fn test_live_irq_pressure() {
-        let psi = irq_pressure().expect("Failed to read /proc/pressure/irq");
+        let psi = match irq_pressure() {
+            Ok(psi) => psi,
+            // /proc/pressure/irq is absent on some kernels / CI runners.
+            Err(procfs2::Error::Io { error: e, .. })
+                if e.kind() == std::io::ErrorKind::NotFound =>
+            {
+                return;
+            }
+            Err(e) => panic!("Failed to read /proc/pressure/irq: {e}"),
+        };
 
         // IRQ only reports `full`; averages are non-negative percentages.
         assert!(psi.full.avg10 >= 0.0, "avg10 should be >= 0");
