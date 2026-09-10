@@ -33,6 +33,7 @@ futures-util = "0.3.31"
 procfs = "0.18.0"
 tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros"] }
 
+
 [features]
 default = []
 async = ["dep:tokio", "dep:async-stream", "dep:futures-core"]
