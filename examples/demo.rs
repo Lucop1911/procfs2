@@ -537,6 +537,21 @@ fn main() {
         snmp.udp.in_datagrams, snmp.udp.out_datagrams
     );
 
+    println!("\n=== /proc/net/snmp6 ===");
+    let snmp6 = proc::net::snmp6().unwrap();
+    println!(
+        "IPv6: received={} delivered={} transmitted={}",
+        snmp6.ip.in_receives, snmp6.ip.in_delivers, snmp6.ip.out_transmits
+    );
+    println!(
+        "ICMPv6: received={} sent={}",
+        snmp6.icmp.in_msgs, snmp6.icmp.out_msgs
+    );
+    println!(
+        "UDPv6: received={} sent={}",
+        snmp6.udp.in_datagrams, snmp6.udp.out_datagrams
+    );
+
     println!("\n=== /sys/block ===");
     for dev in sys::BlockDevice::all().filter_map(|r| r.ok()) {
         println!("  {}", dev.name);

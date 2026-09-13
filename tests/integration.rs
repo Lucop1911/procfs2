@@ -1131,6 +1131,28 @@ mod tests {
     }
 
     #[test]
+    fn test_live_net_snmp6() {
+        let stats = procfs2::proc::net::snmp6().expect("Failed to read /proc/net/snmp6");
+        assert!(stats.ip.in_delivers <= stats.ip.in_receives);
+    }
+
+    #[test]
+    fn test_live_net_snmp6_counters() {
+        let stats = procfs2::proc::net::snmp6().expect("Failed to read /proc/net/snmp6");
+        assert!(stats.ip.out_transmits >= stats.ip.out_requests);
+        let _ = stats.udp.out_datagrams;
+    }
+
+    #[test]
+    fn test_live_net_snmp6_consistent() {
+        let first = procfs2::proc::net::snmp6().expect("Failed to read /proc/net/snmp6");
+        let second = procfs2::proc::net::snmp6().expect("Failed to reread /proc/net/snmp6");
+        assert!(second.ip.in_receives >= first.ip.in_receives);
+        assert!(second.icmp.in_msgs >= first.icmp.in_msgs);
+        assert!(second.udp.out_datagrams >= first.udp.out_datagrams);
+    }
+
+    #[test]
     fn test_live_sys_block() {
         let devices: Vec<_> = sys::BlockDevice::all().filter_map(|r| r.ok()).collect();
         assert!(!devices.is_empty(), "Should have at least one block device");
