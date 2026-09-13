@@ -45,7 +45,7 @@ pub fn arp() -> impl Iterator<Item = Result<ArpEntry>> {
         let fields = parse::SplitFields::<6>::new(line);
         if fields.len() < 6 {
             entries.push(Err(Error::Parse {
-                path: std::path::PathBuf::from(path),
+                path: path.to_path_buf(),
                 line: 0,
                 msg: "not enough fields",
             }));
@@ -57,7 +57,7 @@ pub fn arp() -> impl Iterator<Item = Result<ArpEntry>> {
             Ok(addr) => addr,
             Err(_) => {
                 entries.push(Err(Error::Parse {
-                    path: std::path::PathBuf::from(path),
+                    path: path.to_path_buf(),
                     line: 0,
                     msg: "invalid IPv4 address",
                 }));

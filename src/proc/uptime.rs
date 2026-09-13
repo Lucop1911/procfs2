@@ -26,7 +26,7 @@ pub fn uptime() -> Result<Uptime> {
     let bytes = parse::read_file(path)?;
 
     let space_idx = parse::memchr(b' ', &bytes).ok_or_else(|| Error::Parse {
-        path: std::path::PathBuf::from("/proc/uptime"),
+        path: path.to_path_buf(),
         line: 1,
         msg: "missing space separator",
     })?;

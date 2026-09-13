@@ -59,7 +59,7 @@ pub fn route() -> impl Iterator<Item = Result<RouteEntry>> {
         let fields = parse::SplitFields::<11>::new(line);
         if fields.len() < 11 {
             entries.push(Err(Error::Parse {
-                path: std::path::PathBuf::from(path),
+                path: path.to_path_buf(),
                 line: 0,
                 msg: "not enough fields",
             }));

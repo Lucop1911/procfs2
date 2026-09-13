@@ -45,7 +45,7 @@ pub fn mounts() -> Result<Vec<Mount>> {
         let fields = parse::SplitFields::<6>::new(line);
         if fields.len() < 6 {
             return Err(Error::Parse {
-                path: std::path::PathBuf::from(path),
+                path: path.to_path_buf(),
                 line: 0,
                 msg: "not enough fields",
             });

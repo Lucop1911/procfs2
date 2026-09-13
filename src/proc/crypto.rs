@@ -31,6 +31,7 @@ pub struct Crypto {
 pub fn crypto() -> Result<Vec<Crypto>> {
     let path = Path::new("/proc/crypto");
     let bytes = parse::read_file(path)?;
+
     let mut out = Vec::new();
 
     let mut name = None;

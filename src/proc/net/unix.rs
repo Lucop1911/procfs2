@@ -57,7 +57,7 @@ pub fn unix() -> impl Iterator<Item = Result<UnixEntry>> {
         // (without path), 8 with path.
         if fields.len() < 7 {
             entries.push(Err(Error::Parse {
-                path: std::path::PathBuf::from(path),
+                path: path.to_path_buf(),
                 line: 0,
                 msg: "not enough fields",
             }));

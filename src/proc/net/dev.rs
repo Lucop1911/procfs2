@@ -73,7 +73,7 @@ pub fn dev() -> impl Iterator<Item = Result<NetDevStat>> {
             Some(idx) => idx,
             None => {
                 entries.push(Err(Error::Parse {
-                    path: std::path::PathBuf::from(path),
+                    path: path.to_path_buf(),
                     line: 0,
                     msg: "missing colon in device line",
                 }));
@@ -93,7 +93,7 @@ pub fn dev() -> impl Iterator<Item = Result<NetDevStat>> {
 
         if fields.len() < 16 {
             entries.push(Err(Error::Parse {
-                path: std::path::PathBuf::from(path),
+                path: path.to_path_buf(),
                 line: 0,
                 msg: "expected 16 counter fields",
             }));

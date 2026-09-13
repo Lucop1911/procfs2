@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::error::{Error, Result};
 use crate::util::parse;
 
@@ -24,12 +26,14 @@ pub struct LoadAvg {
 ///
 /// The raw format is: `one five fifteen runnable/total last_pid`
 pub fn loadavg() -> Result<LoadAvg> {
-    let bytes = parse::read_file(std::path::Path::new("/proc/loadavg"))?;
+    let path = Path::new("/proc/loadavg");
+    let bytes = parse::read_file(path)?;
+
     let fields = parse::split_spaces(&bytes);
 
     if fields.len() < 4 {
         return Err(Error::Parse {
-            path: std::path::PathBuf::from("/proc/loadavg"),
+            path: path.to_path_buf(),
             line: 1,
             msg: "expected at least 4 fields",
         });
@@ -41,7 +45,7 @@ pub fn loadavg() -> Result<LoadAvg> {
 
     let sched = fields[3];
     let slash_idx = parse::memchr(b'/', sched).ok_or_else(|| Error::Parse {
-        path: std::path::PathBuf::from("/proc/loadavg"),
+        path: path.to_path_buf(),
         line: 1,
         msg: "missing slash in sched field",
     })?;

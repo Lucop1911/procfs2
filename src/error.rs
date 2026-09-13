@@ -1,5 +1,5 @@
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Errors that can occur when reading or parsing `/proc` and `/sys` entries.
 ///
@@ -187,13 +187,13 @@ impl KernelVersion {
     /// This function locates the `version ` prefix and extracts the first
     /// three dot-separated numeric components.
     pub fn current() -> Result<Self> {
-        let path = PathBuf::from("/proc/version");
-        let bytes = std::fs::read(&path).map_err(|e| Error::Io {
-            path: Some(path.clone()),
+        let path = Path::new("/proc/version");
+        let bytes = std::fs::read(path).map_err(|e| Error::Io {
+            path: Some(path.to_path_buf()),
             error: e,
         })?;
         let text = std::str::from_utf8(&bytes).map_err(|_| Error::Parse {
-            path: PathBuf::from("/proc/version"),
+            path: path.to_path_buf(),
             line: 0,
             msg: "invalid utf8 in /proc/version",
         })?;
@@ -202,7 +202,7 @@ impl KernelVersion {
             .find("version ")
             .map(|i| i + 8)
             .ok_or_else(|| Error::Parse {
-                path: PathBuf::from("/proc/version"),
+                path: path.to_path_buf(),
                 line: 0,
                 msg: "missing 'version' keyword",
             })?;
@@ -217,24 +217,24 @@ impl KernelVersion {
 
         if parts.len() < 3 {
             return Err(Error::Parse {
-                path: PathBuf::from("/proc/version"),
+                path: path.to_path_buf(),
                 line: 0,
                 msg: "invalid version format",
             });
         }
 
         let major = parts[0].parse::<u32>().map_err(|_| Error::Parse {
-            path: PathBuf::from("/proc/version"),
+            path: path.to_path_buf(),
             line: 0,
             msg: "invalid major version",
         })?;
         let minor = parts[1].parse::<u32>().map_err(|_| Error::Parse {
-            path: PathBuf::from("/proc/version"),
+            path: path.to_path_buf(),
             line: 0,
             msg: "invalid minor version",
         })?;
         let patch = parts[2].parse::<u32>().map_err(|_| Error::Parse {
-            path: PathBuf::from("/proc/version"),
+            path: path.to_path_buf(),
             line: 0,
             msg: "invalid patch version",
         })?;

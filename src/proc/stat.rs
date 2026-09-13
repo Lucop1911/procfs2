@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::error::{Error, Result};
 use crate::util::Jiffies;
 use crate::util::parse;
@@ -93,8 +95,8 @@ fn parse_cpu_times(fields: &[&[u8]]) -> Result<CpuTime> {
 /// softirqs, etc.) are intentionally ignored — they may be added in
 /// future modules.
 pub fn stat() -> Result<Stat> {
-    let bytes = parse::read_file(std::path::Path::new("/proc/stat"))?;
-    let path = std::path::PathBuf::from("/proc/stat");
+    let path = Path::new("/proc/stat");
+    let bytes = parse::read_file(path)?;
 
     let mut cpu_total = None;
     let mut per_cpu = Vec::new();
@@ -121,7 +123,7 @@ pub fn stat() -> Result<Stat> {
         } else if key.starts_with(b"cpu") {
             let id_str = &key[3..];
             let id = parse::parse_dec_u32(id_str).map_err(|_| Error::Parse {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 line: line_num + 1,
                 msg: "invalid cpu id",
             })?;
@@ -129,31 +131,31 @@ pub fn stat() -> Result<Stat> {
             per_cpu.push(PerCpuTime { id, times });
         } else if key == b"ctxt" {
             ctxt = Some(parse::parse_dec_u64(fields[1]).map_err(|_| Error::Parse {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 line: line_num + 1,
                 msg: "invalid ctxt",
             })?);
         } else if key == b"btime" {
             btime = Some(parse::parse_dec_u64(fields[1]).map_err(|_| Error::Parse {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 line: line_num + 1,
                 msg: "invalid btime",
             })?);
         } else if key == b"processes" {
             processes = Some(parse::parse_dec_u64(fields[1]).map_err(|_| Error::Parse {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 line: line_num + 1,
                 msg: "invalid processes",
             })?);
         } else if key == b"procs_running" {
             procs_running = Some(parse::parse_dec_u64(fields[1]).map_err(|_| Error::Parse {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 line: line_num + 1,
                 msg: "invalid procs_running",
             })?);
         } else if key == b"procs_blocked" {
             procs_blocked = Some(parse::parse_dec_u64(fields[1]).map_err(|_| Error::Parse {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 line: line_num + 1,
                 msg: "invalid procs_blocked",
             })?);

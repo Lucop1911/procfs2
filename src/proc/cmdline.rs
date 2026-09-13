@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::error::Result;
 use crate::util::parse;
 
@@ -13,8 +15,7 @@ use crate::util::parse;
 /// argument. This function treats a quoted section as one token and
 /// strips the quote characters, matching the bootloader's intent.
 pub fn cmdline() -> Result<Vec<String>> {
-    let bytes = parse::read_file(std::path::Path::new("/proc/cmdline"))?;
-    let bytes = parse::trim_end(&bytes);
+    let bytes = parse::read_file(Path::new("/proc/cmdline"))?;
 
     let mut args = Vec::new();
     let mut cur = Vec::new();

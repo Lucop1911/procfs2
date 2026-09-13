@@ -173,8 +173,8 @@ fn build_cpu_core(fields: &[(Box<str>, Box<str>)]) -> CpuCore {
 /// each block describes one logical CPU. Fields within a block are
 /// key-value pairs (`key : value`).
 pub fn cpuinfo() -> Result<Vec<CpuCore>> {
-    let bytes = parse::read_file(std::path::Path::new("/proc/cpuinfo"))?;
     let path = Path::new("/proc/cpuinfo");
+    let bytes = parse::read_file(path)?;
 
     let mut cores = Vec::new();
     let mut current_fields: Vec<(Box<str>, Box<str>)> = Vec::new();

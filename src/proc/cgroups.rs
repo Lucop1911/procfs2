@@ -44,7 +44,7 @@ pub fn cgroups() -> Result<Vec<Cgroup>> {
         let fields: Vec<&[u8]> = parse::split_spaces(line);
         if fields.len() < 4 {
             return Err(Error::Parse {
-                path: std::path::PathBuf::from(path),
+                path: path.to_path_buf(),
                 line: 0,
                 msg: "not enough fields",
             });

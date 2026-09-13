@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::error::{Error, Result};
 use crate::util::parse;
@@ -36,8 +36,9 @@ pub fn cpu_count() -> Result<u32> {
 /// The file uses a compact range format: `0-3,6` means CPUs
 /// 0, 1, 2, 3, and 6 are online.
 pub fn online_cpus() -> Result<Vec<u32>> {
-    let path = PathBuf::from("/sys/devices/system/cpu/online");
-    let bytes = parse::read_file(&path)?;
+    let path = Path::new("/sys/devices/system/cpu/online");
+    let bytes = parse::read_file(path)?;
+
     let s = std::str::from_utf8(&bytes).unwrap_or("").trim();
 
     if s.is_empty() {
@@ -54,14 +55,14 @@ pub fn online_cpus() -> Result<Vec<u32>> {
 
         if let Some(dash) = segment.find('-') {
             let start = segment[..dash].parse::<u32>().map_err(|_| Error::Parse {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 line: 0,
                 msg: "invalid range start",
             })?;
             let end = segment[dash + 1..]
                 .parse::<u32>()
                 .map_err(|_| Error::Parse {
-                    path: path.clone(),
+                    path: path.to_path_buf(),
                     line: 0,
                     msg: "invalid range end",
                 })?;
@@ -70,7 +71,7 @@ pub fn online_cpus() -> Result<Vec<u32>> {
             }
         } else {
             let cpu = segment.parse::<u32>().map_err(|_| Error::Parse {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 line: 0,
                 msg: "invalid cpu number",
             })?;
