@@ -522,6 +522,21 @@ fn main() {
     let unix_socks: Vec<_> = proc::net::unix().filter_map(|r| r.ok()).collect();
     println!("Unix sockets: {}", unix_socks.len());
 
+    println!("\n=== /proc/net/snmp ===");
+    let snmp = proc::net::snmp().unwrap();
+    println!(
+        "IPv4: received={} delivered={} transmitted={}",
+        snmp.ip.in_receives, snmp.ip.in_delivers, snmp.ip.out_transmits
+    );
+    println!(
+        "TCP: in_segments={} out_segments={} retransmitted={}",
+        snmp.tcp.in_segs, snmp.tcp.out_segs, snmp.tcp.retrans_segs
+    );
+    println!(
+        "UDP: received={} sent={}",
+        snmp.udp.in_datagrams, snmp.udp.out_datagrams
+    );
+
     println!("\n=== /sys/block ===");
     for dev in sys::BlockDevice::all().filter_map(|r| r.ok()) {
         println!("  {}", dev.name);

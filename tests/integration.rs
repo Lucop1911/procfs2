@@ -1104,6 +1104,33 @@ mod tests {
     }
 
     #[test]
+    fn test_live_net_snmp() {
+        let stats = procfs2::proc::net::snmp().expect("Failed to read /proc/net/snmp");
+        assert!(stats.ip.default_ttl > 0, "IP default TTL should be > 0");
+        assert!(stats.tcp.rto_min > 0, "TCP minimum RTO should be > 0");
+    }
+
+    #[test]
+    fn test_live_net_snmp_counters() {
+        let stats = procfs2::proc::net::snmp().expect("Failed to read /proc/net/snmp");
+        assert!(stats.ip.in_receives >= stats.ip.in_delivers);
+        assert!(stats.tcp.in_segs > 0, "TCP input segments should be > 0");
+        assert!(
+            stats.udp.out_datagrams > 0,
+            "UDP output datagrams should be > 0"
+        );
+    }
+
+    #[test]
+    fn test_live_net_snmp_consistent() {
+        let first = procfs2::proc::net::snmp().expect("Failed to read /proc/net/snmp");
+        let second = procfs2::proc::net::snmp().expect("Failed to reread /proc/net/snmp");
+        assert!(second.ip.in_receives >= first.ip.in_receives);
+        assert!(second.tcp.in_segs >= first.tcp.in_segs);
+        assert!(second.udp.in_datagrams >= first.udp.in_datagrams);
+    }
+
+    #[test]
     fn test_live_sys_block() {
         let devices: Vec<_> = sys::BlockDevice::all().filter_map(|r| r.ok()).collect();
         assert!(!devices.is_empty(), "Should have at least one block device");
