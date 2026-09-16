@@ -134,6 +134,29 @@ fn main() {
     println!("  net: {:?}", ns.net);
     println!("  uts: {:?}", ns.uts);
 
+    println!("\n=== /proc/self/syscall ===");
+    let syscall = me.syscall().unwrap();
+    match syscall.state {
+        procfs2::proc::process::SyscallState::Running => {
+            println!("  State: Running (not blocked in syscall)");
+        }
+        procfs2::proc::process::SyscallState::BlockedNotInSyscall => {
+            println!("  State: Blocked (not in syscall)");
+            println!("  NR: {:?}", syscall.nr);
+            println!("  SP: 0x{:x}", syscall.sp);
+            println!("  IP: 0x{:x}", syscall.ip);
+        }
+        procfs2::proc::process::SyscallState::InSyscall => {
+            println!("  State: In Syscall");
+            println!("  NR: {}", syscall.nr.unwrap());
+            for (i, arg) in syscall.args.iter().enumerate() {
+                println!("  Arg{}: 0x{:x}", i, arg.unwrap_or(0));
+            }
+            println!("  SP: 0x{:x}", syscall.sp);
+            println!("  IP: 0x{:x}", syscall.ip);
+        }
+    }
+
     println!("\n=== /proc/stat (CPU) ===");
     let sys_stat = proc::stat().unwrap();
     println!("Context switches: {}", sys_stat.ctxt);

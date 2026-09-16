@@ -216,6 +216,50 @@ mod tests {
     }
 
     #[test]
+    fn test_live_process_syscall() {
+        let me = Process::current().expect("Failed to get current process");
+        let syscall = me.syscall().expect("Failed to read process syscall");
+
+        // The syscall state must be one of the three valid states
+        match syscall.state {
+            procfs2::proc::process::SyscallState::Running => {
+                // Not blocked in a syscall
+            }
+            procfs2::proc::process::SyscallState::BlockedNotInSyscall => {
+                // Blocked but not in a syscall - nr should be -1
+                assert_eq!(syscall.nr, Some(-1));
+            }
+            procfs2::proc::process::SyscallState::InSyscall => {
+                // Currently in a syscall - nr should be >= 0
+                assert!(syscall.nr.is_some_and(|n| n >= 0));
+                // Args should be present
+                for arg in syscall.args {
+                    assert!(arg.is_some(), "InSyscall should have all 6 args");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_live_process_syscall_sp_ip() {
+        let me = Process::current().expect("Failed to get current process");
+        let syscall = me.syscall().expect("Failed to read process syscall");
+
+        // Stack pointer and instruction pointer should be valid addresses
+        // when the process is in a syscall or blocked (not when "running")
+        if syscall.state != procfs2::proc::process::SyscallState::Running {
+            assert!(
+                syscall.sp > 0,
+                "stack pointer should be non-zero when not running"
+            );
+            assert!(
+                syscall.ip > 0,
+                "instruction pointer should be non-zero when not running"
+            );
+        }
+    }
+
+    #[test]
     fn test_live_devices() {
         let devices = devices().expect("Failed to read /proc/devices");
 

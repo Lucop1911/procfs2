@@ -5,8 +5,9 @@ mod limits;
 mod maps;
 mod mountinfo;
 mod ns;
-pub mod stat;
+mod stat;
 mod status;
+mod syscall;
 mod threads;
 
 pub use cgroup::CgroupEntry;
@@ -18,6 +19,7 @@ pub use mountinfo::MountInfo;
 pub use ns::Namespaces;
 pub use stat::ProcessStat;
 pub use status::{Gids, ProcessState, ProcessStatus, Uids};
+pub use syscall::{ProcessSyscall, SyscallState};
 
 use crate::error::{Error, KernelVersion, Result};
 use std::os::unix::ffi::OsStrExt;
@@ -331,6 +333,27 @@ impl Process {
         let path = format!("/proc/{}/limits", self.pid);
         let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
         ProcessLimits::from_bytes(&bytes)
+    }
+
+    /// Reads `/proc/PID/syscall` and returns the current system call.
+    ///
+    /// Exposes the system call number and argument registers for the
+    /// system call currently being executed by the process, followed
+    /// by the stack pointer and instruction pointer.
+    ///
+    /// Returns [`SyscallState::Running`] if the process is not blocked.
+    /// Returns [`SyscallState::BlockedNotInSyscall`] if blocked but
+    /// not in a syscall (syscall number -1). Returns
+    /// [`SyscallState::InSyscall`] with the syscall number and
+    /// arguments if currently in a syscall.
+    ///
+    /// Requires kernel 2.6.27+ with `CONFIG_HAVE_ARCH_TRACEHOOK`.
+    /// Returns [`Error::PermissionDenied`] if the caller lacks
+    /// `PTRACE_MODE_ATTACH_FSCREDS` permission.
+    pub fn syscall(&self) -> Result<ProcessSyscall> {
+        let path = format!("/proc/{}/syscall", self.pid);
+        let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
+        ProcessSyscall::from_bytes(&bytes)
     }
 
     /// Reads `/proc/PID/mountinfo` and returns mount entries.
