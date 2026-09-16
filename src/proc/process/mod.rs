@@ -275,41 +275,7 @@ impl Process {
     /// Iterates the directory, reads each symlink, and classifies
     /// the target as a file, socket, pipe, anon-inode, or other.
     pub fn fds(&self) -> Result<Vec<Fd>> {
-        let path = format!("/proc/{}/fd", self.pid);
-        let entries = std::fs::read_dir(&path).map_err(|e| {
-            if e.kind() == std::io::ErrorKind::PermissionDenied {
-                Error::PermissionDenied(std::path::PathBuf::from(&path))
-            } else {
-                Error::Io {
-                    path: Some(std::path::PathBuf::from(&path)),
-                    error: e,
-                }
-            }
-        })?;
-
-        let mut fds = Vec::new();
-
-        for entry in entries {
-            let entry = entry.map_err(|e| Error::Io {
-                path: Some(std::path::PathBuf::from(&path)),
-                error: e,
-            })?;
-            let fd_num = entry.file_name().to_string_lossy().parse::<i32>().ok();
-            if let Some(num) = fd_num {
-                let target = std::fs::read_link(entry.path()).map_err(|e| Error::Io {
-                    path: Some(entry.path().to_path_buf()),
-                    error: e,
-                })?;
-                let target_str = target.to_string_lossy();
-                let fd_target = FdTarget::parse(&target_str);
-                fds.push(Fd {
-                    number: num,
-                    target: fd_target,
-                });
-            }
-        }
-
-        Ok(fds)
+        fd::read_fds(self.pid)
     }
 
     /// Reads `/proc/PID/io` and returns I/O counters.
@@ -394,36 +360,6 @@ impl Process {
     /// allowing all `Process` methods to be called on individual
     /// threads.
     pub fn threads(&self) -> impl Iterator<Item = Result<Self>> {
-        let task_path = format!("/proc/{}/task", self.pid);
-        let entries = match std::fs::read_dir(&task_path) {
-            Ok(iter) => iter,
-            Err(e) => {
-                return vec![Err(Error::Io {
-                    path: Some(std::path::PathBuf::from(&task_path)),
-                    error: e,
-                })]
-                .into_iter();
-            }
-        };
-
-        entries
-            .filter_map(|entry| match entry {
-                Ok(e) => {
-                    let name = e.file_name();
-                    let name_str = name.to_string_lossy();
-                    if name_str.chars().all(|c| c.is_ascii_digit()) {
-                        let tid = name_str.parse::<u32>().ok()?;
-                        Some(Ok(Process { pid: tid }))
-                    } else {
-                        None
-                    }
-                }
-                Err(e) => Some(Err(Error::Io {
-                    path: Some(std::path::PathBuf::from(&task_path)),
-                    error: e,
-                })),
-            })
-            .collect::<Vec<_>>()
-            .into_iter()
+        threads::read_threads(self.pid)
     }
 }
