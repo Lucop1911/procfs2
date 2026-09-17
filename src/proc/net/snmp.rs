@@ -172,9 +172,13 @@ pub struct UdpStats {
 /// IPv4 protocol statistics read from `/proc/net/snmp`.
 #[derive(Debug, Default)]
 pub struct SnmpInfo {
+    /// IPv4 packet counters.
     pub ip: IpStats,
+    /// ICMPv4 message counters.
     pub icmp: IcmpStats,
+    /// TCP connection counters.
     pub tcp: TcpStats,
+    /// UDP datagram counters.
     pub udp: UdpStats,
 }
 

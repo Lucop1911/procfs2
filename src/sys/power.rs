@@ -8,13 +8,21 @@ use crate::util::parse;
 /// Sourced from `/sys/class/power_supply/<name>/type`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PowerSupplyType {
+    /// Lithium-ion or similar rechargeable battery.
     Battery,
+    /// AC mains / wall adapter.
     Mains,
+    /// Generic USB power source.
     Usb,
+    /// USB Dedicated Charging Port.
     UsbDcp,
+    /// USB Charging Downstream Port.
     UsbCdp,
+    /// USB Accessory Charging Adapter.
     UsbAca,
+    /// Wireless (inductive) charger.
     Wireless,
+    /// Standby / backup battery (e.g. CMOS on a server).
     BatteryBackup,
 }
 
@@ -39,10 +47,15 @@ impl PowerSupplyType {
 /// Sourced from `/sys/class/power_supply/<name>/status`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChargeStatus {
+    /// State is unknown.
     Unknown,
+    /// Actively charging.
     Charging,
+    /// Discharging (running on battery).
     Discharging,
+    /// Plugged in but not charging (e.g. full or throttled).
     NotCharging,
+    /// Fully charged.
     Full,
 }
 
@@ -62,6 +75,7 @@ impl ChargeStatus {
 ///
 /// Covers batteries, AC adapters, and USB power sources.
 pub struct PowerSupply {
+    /// Power supply name (e.g. `BAT0`, `ACAD`).
     pub name: Box<str>,
     base: PathBuf,
 }

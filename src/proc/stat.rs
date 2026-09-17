@@ -39,6 +39,7 @@ pub struct CpuTime {
 pub struct PerCpuTime {
     /// CPU index (0-based).
     pub id: u32,
+    /// Time counters for this CPU.
     pub times: CpuTime,
 }
 

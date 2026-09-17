@@ -9,27 +9,39 @@ use crate::util::parse;
 /// unless the socket has called `connect()`.
 #[derive(Debug)]
 pub struct UdpEntry {
+    /// Local socket address.
     pub local: SocketAddrV4,
+    /// Remote socket address.
     pub remote: SocketAddrV4,
     /// Kernel socket state (usually 0x07 for unconnected, 0x01 for connected).
     pub state: u32,
     /// UID of the process that opened this socket.
     pub uid: u32,
+    /// Kernel inode number for the socket.
     pub inode: u64,
+    /// Receive queue length (bytes).
     pub rx_queue: u32,
+    /// Transmit queue length (bytes).
     pub tx_queue: u32,
 }
 
 /// A single UDP6 socket entry from `/proc/net/udp6`.
 #[derive(Debug)]
 pub struct Udp6Entry {
+    /// Local socket address.
     pub local: SocketAddrV6,
+    /// Remote socket address.
     pub remote: SocketAddrV6,
+    /// Kernel socket state.
     pub state: u32,
     /// UID of the process that opened this socket.
+    /// UID of the process that opened this socket.
     pub uid: u32,
+    /// Kernel inode number for the socket.
     pub inode: u64,
+    /// Receive queue length (bytes).
     pub rx_queue: u32,
+    /// Transmit queue length (bytes).
     pub tx_queue: u32,
 }
 

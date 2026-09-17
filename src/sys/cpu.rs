@@ -9,6 +9,7 @@ use crate::util::parse;
 /// indicates the active CPU frequency scaling policy.
 #[derive(Debug)]
 pub struct CpuFreqInfo {
+    /// Logical CPU index.
     pub cpu: u32,
     /// Current operating frequency.
     pub current_khz: u32,

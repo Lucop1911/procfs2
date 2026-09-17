@@ -49,6 +49,7 @@ use std::{
 /// that case.
 #[derive(Debug)]
 pub struct Process {
+    /// Process ID.
     pub pid: u32,
 }
 

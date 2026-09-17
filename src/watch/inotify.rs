@@ -385,11 +385,21 @@ pub enum WatchEvent {
     /// A file or directory was moved from this location.
     ///
     /// The `cookie` field can be used to match with a corresponding `MovedTo` event.
-    MovedFrom { path: Option<PathBuf>, cookie: u32 },
+    MovedFrom {
+        /// Path that the file was moved from, if available.
+        path: Option<PathBuf>,
+        /// Non-zero cookie that links a `MovedFrom` to its matching `MovedTo`.
+        cookie: u32,
+    },
     /// A file or directory was moved to this location.
     ///
     /// The `cookie` field can be used to match with a corresponding `MovedFrom` event.
-    MovedTo { path: Option<PathBuf>, cookie: u32 },
+    MovedTo {
+        /// Path that the file was moved to, if available.
+        path: Option<PathBuf>,
+        /// Non-zero cookie that links a `MovedTo` to its matching `MovedFrom`.
+        cookie: u32,
+    },
     /// A file was accessed (read).
     Accessed(Option<PathBuf>),
     /// An unknown event occurred.

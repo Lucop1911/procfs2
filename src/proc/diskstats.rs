@@ -5,6 +5,7 @@ use crate::util::Milliseconds;
 use crate::util::parse::{self, parse_dec_u32, parse_dec_u64};
 
 #[derive(Debug)]
+/// A single disk's I/O statistics from `/proc/diskstats`.
 pub struct DiskStat {
     /// Device major number.
     pub major: u32,

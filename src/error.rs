@@ -14,7 +14,9 @@ pub enum Error {
     /// the operation failed, or `None` when there is no single file (e.g.
     /// an inotify fd operation or a translated `last_os_error`).
     Io {
+        /// Path that was being accessed when the error occurred.
         path: Option<PathBuf>,
+        /// The underlying I/O error.
         error: std::io::Error,
     },
 
@@ -22,8 +24,11 @@ pub enum Error {
     ///
     /// `line` is 1-indexed. `msg` is a static string describing what went wrong.
     Parse {
+        /// File that failed to parse.
         path: PathBuf,
+        /// 1-indexed line number where parsing failed.
         line: usize,
+        /// Short description of what went wrong.
         msg: &'static str,
     },
 
@@ -40,7 +45,9 @@ pub enum Error {
     /// The running kernel does not meet the minimum version required
     /// for a particular feature.
     UnsupportedKernel {
+        /// Minimum kernel version required.
         required: KernelVersion,
+        /// Actual kernel version detected.
         found: KernelVersion,
     },
 }
@@ -174,8 +181,11 @@ impl std::error::Error for Error {
 /// certain `/proc` or `/sys` entries only exist on newer kernels.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KernelVersion {
+    /// Major version number.
     pub major: u32,
+    /// Minor version number.
     pub minor: u32,
+    /// Patch level.
     pub patch: u32,
 }
 

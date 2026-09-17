@@ -14,10 +14,15 @@ bitflags! {
     /// [`PRIVATE`](Self::PRIVATE) flags respectively.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct MapPermissions: u8 {
+        /// Read permission.
         const READ    = 1 << 0;
+        /// Write permission.
         const WRITE   = 1 << 1;
+        /// Execute permission.
         const EXEC    = 1 << 2;
+        /// Shared mapping (visible to other processes).
         const SHARED  = 1 << 3;
+        /// Private mapping (copy-on-write).
         const PRIVATE = 1 << 4;
     }
 }
@@ -57,6 +62,7 @@ pub enum MapPathname {
 pub struct MemoryMap {
     /// Virtual address range of this mapping.
     pub address: Range<u64>,
+    /// Access permissions for this mapping.
     pub perms: MapPermissions,
     /// Offset into the backing file (zero for anonymous mappings).
     pub offset: u64,
@@ -64,6 +70,7 @@ pub struct MemoryMap {
     pub device: (u32, u32),
     /// Inode number of the backing file (zero for anonymous).
     pub inode: u64,
+    /// Backing file or special region type.
     pub pathname: MapPathname,
 }
 
@@ -73,11 +80,17 @@ pub struct MemoryMap {
 /// by key-value lines with memory statistics in kilobytes.
 #[derive(Debug, Clone)]
 pub struct MemoryMapDetail {
+    /// Virtual address range of this mapping.
     pub address: Range<u64>,
+    /// Access permissions.
     pub perms: MapPermissions,
+    /// Offset into the backing file.
     pub offset: u64,
+    /// Device major and minor numbers of the backing file.
     pub device: (u32, u32),
+    /// Inode number of the backing file.
     pub inode: u64,
+    /// Backing file or special region type.
     pub pathname: MapPathname,
     /// Total size of the mapping in kB.
     pub size_kb: u64,

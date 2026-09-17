@@ -261,7 +261,7 @@ Rust 1.86 — verified in CI by building with the 1.86.0 toolchain.
 
 ## License
 
-Licensed under the [MIT License](https://github.com/lucop1911/procfs2/blob/master/LICENSE).
+Licensed under the [MIT License](https://github.com/lucop1911/procfs2/blob/main/LICENSE).
 
 ## Contributing
 

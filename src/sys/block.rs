@@ -56,6 +56,7 @@ pub struct QueueParams {
 /// Each method reads a different set of files under the device's
 /// sysfs directory.
 pub struct BlockDevice {
+    /// Device name (e.g. `sda`, `nvme0n1`).
     pub name: Box<str>,
     base: PathBuf,
 }

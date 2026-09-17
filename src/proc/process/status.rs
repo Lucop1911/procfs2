@@ -16,15 +16,25 @@ use crate::util::parse;
 /// - `I` — idle kernel thread
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessState {
+    /// Running or runnable on a CPU.
     Running,
+    /// Interruptible sleep (waiting for an event).
     Sleeping,
+    /// Uninterruptible sleep (usually I/O).
     Waiting,
+    /// Zombie — terminated but not yet reaped.
     Zombie,
+    /// Stopped by job control signal (`SIGSTOP`, `SIGTSTP`, etc.).
     Stopped,
+    /// Dead (should never appear in `/proc`).
     Dead,
+    /// Idle kernel thread (`CONFIG_VIRT_CPU_ACCOUNTING_GEN` only).
     Idle,
+    /// Wakekill — killed while waking from a non-interruptible sleep (internal).
     WakeKill,
+    /// Waking — being woken up (internal).
     Waking,
+    /// Parked — frozen by the cgroup freezer.
     Parked,
 }
 
@@ -72,9 +82,13 @@ pub struct Uids {
 /// Same layout as [`Uids`], sourced from the `Gid:` line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Gids {
+    /// Real GID — the group that launched the process.
     pub real: u32,
+    /// Effective GID — used for permission checks.
     pub effective: u32,
+    /// Saved set-GID — preserved across `setegid()` calls.
     pub saved: u32,
+    /// Filesystem GID — Linux-specific, used for file access checks.
     pub filesystem: u32,
 }
 

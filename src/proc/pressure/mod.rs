@@ -1,6 +1,10 @@
+/// CPU pressure from `/proc/pressure/cpu`.
 pub mod cpu;
+/// I/O pressure from `/proc/pressure/io`.
 pub mod io;
+/// IRQ pressure from `/proc/pressure/irq`.
 pub mod irq;
+/// Memory pressure from `/proc/pressure/memory`.
 pub mod memory;
 
 pub use cpu::{CpuPressure, cpu_pressure};

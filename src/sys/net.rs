@@ -7,23 +7,43 @@ use crate::util::Bytes;
 use crate::util::parse;
 
 bitflags! {
+    /// Network interface flags.
+    ///
+    /// Parsed from the hex value in `/sys/class/net/<name>/flags`.
+    /// Mirrors the `IFF_*` constants from `<net/if.h>`.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct NetIfFlags: u32 {
+        /// Interface is up.
         const UP          = 1 << 0;
+        /// Broadcast address is valid.
         const BROADCAST   = 1 << 1;
+        /// Debugging is enabled.
         const DEBUG       = 1 << 2;
+        /// Loopback interface.
         const LOOPBACK    = 1 << 3;
+        /// Point-to-point link.
         const POINTOPOINT = 1 << 4;
+        /// No packet headers.
         const NOTRAILERS  = 1 << 5;
+        /// Interface is operational.
         const RUNNING     = 1 << 6;
+        /// No ARP protocol.
         const NOARP       = 1 << 7;
+        /// Promiscuous mode enabled.
         const PROMISC     = 1 << 8;
+        /// Receive all multicast packets.
         const ALLMULTI    = 1 << 9;
+        /// Master of a bonding/bridging slave.
         const MASTER      = 1 << 10;
+        /// Slave of a bonding/bridging master.
         const SLAVE       = 1 << 11;
+        /// Supports multicast.
         const MULTICAST   = 1 << 12;
+        /// Media selection (obsolete).
         const PORTSEL     = 1 << 13;
+        /// Auto media selection active.
         const AUTOMEDIA   = 1 << 14;
+        /// Dynamic address is in use.
         const DYNAMIC     = 1 << 15;
     }
 }
@@ -33,12 +53,19 @@ bitflags! {
 /// Sourced from `/sys/class/net/<name>/operstate`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperState {
+    /// State is unknown.
     Unknown,
+    /// Device is not present in the system.
     NotPresent,
+    /// Link is down.
     Down,
+    /// Link is down due to lower-layer issues (e.g. no carrier).
     LowerLayerDown,
+    /// Interface is in testing mode.
     Testing,
+    /// Interface is operational but not transmitting.
     Dormant,
+    /// Link is up and ready to transmit.
     Up,
 }
 
@@ -64,18 +91,27 @@ pub struct MacAddress(pub [u8; 6]);
 /// Per-interface statistics from `/sys/class/net/<name>/statistics/`.
 #[derive(Debug)]
 pub struct NetIfStat {
+    /// Total bytes received.
     pub rx_bytes: Bytes,
+    /// Total packets received.
     pub rx_packets: u64,
+    /// Receive errors.
     pub rx_errors: u64,
+    /// Receive drops.
     pub rx_drop: u64,
+    /// Total bytes transmitted.
     pub tx_bytes: Bytes,
+    /// Total packets transmitted.
     pub tx_packets: u64,
+    /// Transmit errors.
     pub tx_errors: u64,
+    /// Transmit drops.
     pub tx_drop: u64,
 }
 
 /// A network interface exposed under `/sys/class/net/<name>/`.
 pub struct NetInterface {
+    /// Interface name (e.g. `eth0`, `wlan0`, `lo`).
     pub name: Box<str>,
     base: PathBuf,
 }

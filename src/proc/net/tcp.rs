@@ -9,17 +9,29 @@ use crate::util::parse;
 /// See `include/net/tcp_states.h` in the kernel source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TcpState {
+    /// Connection established.
     Established,
+    /// SYN sent, waiting for a matching SYN-ACK.
     SynSent,
+    /// SYN received, sent an ACK.
     SynRecv,
+    /// First FIN sent, waiting for an ACK or a FIN from the other side.
     FinWait1,
+    /// Other side's FIN acknowledged, waiting for a FIN from the other side.
     FinWait2,
+    /// Both FINs acknowledged; waiting for a final timeout.
     TimeWait,
+    /// Both sides closed, or a reset was received.
     Close,
+    /// Remote side sent a FIN; waiting for a close from the local application.
     CloseWait,
+    /// Last ACK sent, waiting for a final ACK.
     LastAck,
+    /// Listening for incoming connections.
     Listen,
+    /// Both sides sent a FIN simultaneously.
     Closing,
+    /// SYN received in LISTEN state (syncookies).
     NewSynRecv,
 }
 
@@ -50,8 +62,11 @@ impl TcpState {
 /// reported by the kernel.
 #[derive(Debug)]
 pub struct TcpEntry {
+    /// Local socket address.
     pub local: SocketAddrV4,
+    /// Remote socket address.
     pub remote: SocketAddrV4,
+    /// Connection state.
     pub state: TcpState,
     /// Kernel inode number for the socket.
     ///
@@ -71,12 +86,19 @@ pub struct TcpEntry {
 /// Same layout as [`TcpEntry`] but with IPv6 addresses.
 #[derive(Debug)]
 pub struct Tcp6Entry {
+    /// Local socket address.
     pub local: SocketAddrV6,
+    /// Remote socket address.
     pub remote: SocketAddrV6,
+    /// Connection state.
     pub state: TcpState,
+    /// Kernel inode number for the socket.
     pub inode: u64,
+    /// UID of the process that opened this socket.
     pub uid: u32,
+    /// Receive queue length (bytes).
     pub rx_queue: u32,
+    /// Transmit queue length (bytes).
     pub tx_queue: u32,
 }
 

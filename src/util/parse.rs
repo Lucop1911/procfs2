@@ -16,6 +16,7 @@ pub fn read_file(path: &std::path::Path) -> Result<Vec<u8>> {
 /// Implementors parse directly from `&[u8]` to avoid UTF-8 conversion
 /// overhead for fields that are purely numeric.
 pub trait ParseFromBytes: Sized {
+    /// Parses a value from a raw byte buffer.
     fn parse_from_bytes(bytes: &[u8]) -> Result<Self>;
 }
 
