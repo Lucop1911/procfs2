@@ -260,6 +260,93 @@ mod tests {
     }
 
     #[test]
+    fn test_live_process_auxv() {
+        let me = Process::current().expect("Failed to get current process");
+        let auxv = me.auxv().expect("Failed to read process auxv");
+
+        // Every process has a populated auxiliary vector.
+        assert!(!auxv.entries.is_empty(), "auxv should not be empty");
+        assert!(
+            auxv.get(procfs2::proc::process::auxv_type::AT_PAGESZ)
+                .is_some(),
+            "auxv should contain AT_PAGESZ"
+        );
+    }
+
+    #[test]
+    fn test_live_process_auxv_page_size() {
+        let me = Process::current().expect("Failed to get current process");
+        let auxv = me.auxv().expect("Failed to read process auxv");
+
+        // The page size is a power of two and matches the raw entry.
+        let raw = auxv
+            .get(procfs2::proc::process::auxv_type::AT_PAGESZ)
+            .expect("AT_PAGESZ should be present");
+        assert!(raw.is_power_of_two(), "page size should be a power of two");
+        assert_eq!(auxv.page_size(), raw, "page_size should match AT_PAGESZ");
+    }
+
+    #[test]
+    fn test_live_process_auxv_known_entries() {
+        let me = Process::current().expect("Failed to get current process");
+        let auxv = me.auxv().expect("Failed to read process auxv");
+
+        use procfs2::proc::process::auxv_type;
+
+        // The kernel reports a positive clock tick rate and the
+        // executable always has a non-zero entry point.
+        assert!(auxv.get(auxv_type::AT_CLKTCK).is_some_and(|v| v > 0));
+        assert!(auxv.get(auxv_type::AT_ENTRY).is_some_and(|v| v != 0));
+
+        // An unknown tag has no entry.
+        assert_eq!(auxv.get(u64::MAX), None);
+    }
+
+    #[test]
+    fn test_live_process_pagemap_count() {
+        let me = Process::current().expect("Failed to get current process");
+        let maps = me.maps().expect("Failed to read process maps");
+        let first = maps.first().expect("process should have at least one map");
+
+        let entries = me
+            .pagemap(first.address.start, first.address.end)
+            .expect("Failed to read process pagemap");
+
+        // The range yields exactly one entry per page.
+        let page_size = me.auxv().expect("Failed to read auxv").page_size();
+        let expected = first.address.end.div_ceil(page_size) - first.address.start / page_size;
+        assert_eq!(entries.len() as u64, expected, "one entry per page");
+    }
+
+    #[test]
+    fn test_live_process_pagemap_resident() {
+        let me = Process::current().expect("Failed to get current process");
+        let maps = me.maps().expect("Failed to read process maps");
+
+        // A running process has resident pages; scanning the mapped
+        // regions should turn up at least one present entry.
+        let mut resident = 0;
+        for map in &maps {
+            let entries = me
+                .pagemap(map.address.start, map.address.end)
+                .expect("Failed to read process pagemap");
+            resident += entries.iter().filter(|e| e.is_mapped()).count();
+        }
+        assert!(resident > 0, "process should have resident pages");
+    }
+
+    #[test]
+    fn test_live_process_pagemap_empty_range() {
+        let me = Process::current().expect("Failed to get current process");
+
+        // A zero-length range yields no entries.
+        let entries = me
+            .pagemap(0x1000, 0x1000)
+            .expect("Failed to read process pagemap");
+        assert!(entries.is_empty(), "empty range should yield no entries");
+    }
+
+    #[test]
     fn test_live_devices() {
         let devices = devices().expect("Failed to read /proc/devices");
 
@@ -1183,7 +1270,14 @@ mod tests {
     #[test]
     fn test_live_net_snmp6_counters() {
         let stats = procfs2::proc::net::snmp6().expect("Failed to read /proc/net/snmp6");
-        assert!(stats.ip.out_transmits >= stats.ip.out_requests);
+        // A locally generated datagram counted in `out_requests` is either
+        // handed to the lower layers (`out_transmits`) or dropped
+        // (`out_discards` / `out_no_routes`), so these must account for it.
+        assert!(
+            stats.ip.out_requests
+                <= stats.ip.out_transmits + stats.ip.out_discards + stats.ip.out_no_routes,
+            "out_requests should be accounted for by transmits or drops"
+        );
         let _ = stats.udp.out_datagrams;
     }
 

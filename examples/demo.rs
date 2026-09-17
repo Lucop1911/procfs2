@@ -157,6 +157,27 @@ fn main() {
         }
     }
 
+    println!("\n=== /proc/self/auxv ===");
+    let auxv = me.auxv().unwrap();
+    println!("Page size: {} bytes", auxv.page_size());
+    println!("Entries: {}", auxv.entries.len());
+    for entry in auxv.entries.iter().take(5) {
+        println!("  type={:<2} value=0x{:x}", entry.type_tag, entry.value);
+    }
+
+    println!("\n=== /proc/self/pagemap (first map) ===");
+    if let Some(map) = maps.first() {
+        let entries = me.pagemap(map.address.start, map.address.end).unwrap();
+        let resident = entries.iter().filter(|e| e.is_mapped()).count();
+        println!(
+            "  {:016x}-{:016x}: {} pages, {} resident",
+            map.address.start,
+            map.address.end,
+            entries.len(),
+            resident
+        );
+    }
+
     println!("\n=== /proc/stat (CPU) ===");
     let sys_stat = proc::stat().unwrap();
     println!("Context switches: {}", sys_stat.ctxt);

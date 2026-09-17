@@ -1,3 +1,4 @@
+mod auxv;
 mod cgroup;
 mod fd;
 mod io;
@@ -5,11 +6,13 @@ mod limits;
 mod maps;
 mod mountinfo;
 mod ns;
+mod pagemap;
 mod stat;
 mod status;
 mod syscall;
 mod threads;
 
+pub use auxv::{Auxv, AuxvEntry, auxv_type};
 pub use cgroup::CgroupEntry;
 pub use fd::{Fd, FdTarget};
 pub use io::ProcessIo;
@@ -17,12 +20,21 @@ pub use limits::{Limit, LimitUnit, ProcessLimits};
 pub use maps::{MapPathname, MapPermissions, MemoryMap, MemoryMapDetail, SmapsRollup};
 pub use mountinfo::MountInfo;
 pub use ns::Namespaces;
+pub use pagemap::PageMapEntry;
 pub use stat::ProcessStat;
 pub use status::{Gids, ProcessState, ProcessStatus, Uids};
 pub use syscall::{ProcessSyscall, SyscallState};
 
-use crate::error::{Error, KernelVersion, Result};
-use std::os::unix::ffi::OsStrExt;
+use crate::{
+    error::{Error, KernelVersion, Result},
+    util::parse,
+};
+use std::{
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+    os::unix::ffi::OsStrExt,
+    path::{Path, PathBuf},
+};
 
 /// A handle to a running process, identified by its PID.
 ///
@@ -49,7 +61,7 @@ impl Process {
     /// terminated.
     pub fn new(pid: u32) -> Result<Self> {
         let path = format!("/proc/{}", pid);
-        if std::path::Path::new(&path).is_dir() {
+        if Path::new(&path).is_dir() {
             Ok(Process { pid })
         } else {
             Err(Error::ProcessGone(pid))
@@ -65,25 +77,25 @@ impl Process {
     pub fn current() -> Result<Self> {
         let path = "/proc/self";
         let target = std::fs::read_link(path).map_err(|e| Error::Io {
-            path: Some(std::path::PathBuf::from(path)),
+            path: Some(PathBuf::from(path)),
             error: e,
         })?;
         let pid_str = target
             .file_name()
             .ok_or_else(|| Error::Parse {
-                path: std::path::PathBuf::from(path),
+                path: PathBuf::from(path),
                 line: 0,
                 msg: "invalid /proc/self symlink",
             })?
             .to_str()
             .ok_or_else(|| Error::Parse {
-                path: std::path::PathBuf::from(path),
+                path: PathBuf::from(path),
                 line: 0,
                 msg: "non-utf8 pid in /proc/self",
             })?;
 
         let pid = pid_str.parse::<u32>().map_err(|_| Error::Parse {
-            path: std::path::PathBuf::from(path),
+            path: PathBuf::from(path),
             line: 0,
             msg: "invalid pid in /proc/self",
         })?;
@@ -102,7 +114,7 @@ impl Process {
             Ok(iter) => iter,
             Err(e) => {
                 return vec![Err(Error::Io {
-                    path: Some(std::path::PathBuf::from("/proc")),
+                    path: Some(PathBuf::from("/proc")),
                     error: e,
                 })]
                 .into_iter();
@@ -122,7 +134,7 @@ impl Process {
                     }
                 }
                 Err(e) => Some(Err(Error::Io {
-                    path: Some(std::path::PathBuf::from("/proc")),
+                    path: Some(PathBuf::from("/proc")),
                     error: e,
                 })),
             })
@@ -137,7 +149,7 @@ impl Process {
     /// kernel and may be truncated.
     pub fn stat(&self) -> Result<ProcessStat> {
         let path = format!("/proc/{}/stat", self.pid);
-        let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
+        let bytes = parse::read_file(Path::new(&path))?;
         ProcessStat::from_bytes(&bytes)
     }
 
@@ -148,7 +160,7 @@ impl Process {
     /// switches, and optional memory peaks.
     pub fn status(&self) -> Result<ProcessStatus> {
         let path = format!("/proc/{}/status", self.pid);
-        let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
+        let bytes = parse::read_file(Path::new(&path))?;
         ProcessStatus::from_bytes(&bytes)
     }
 
@@ -158,7 +170,7 @@ impl Process {
     /// empty vector for kernel threads, which have no cmdline.
     pub fn cmdline(&self) -> Result<Vec<std::ffi::OsString>> {
         let path = format!("/proc/{}/cmdline", self.pid);
-        let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
+        let bytes = parse::read_file(Path::new(&path))?;
 
         if bytes.is_empty() {
             return Ok(Vec::new());
@@ -182,7 +194,7 @@ impl Process {
         &self,
     ) -> Result<std::collections::HashMap<std::ffi::OsString, std::ffi::OsString>> {
         let path = format!("/proc/{}/environ", self.pid);
-        let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
+        let bytes = parse::read_file(Path::new(&path))?;
 
         let mut map = std::collections::HashMap::new();
 
@@ -205,10 +217,10 @@ impl Process {
         let path = format!("/proc/{}/exe", self.pid);
         std::fs::read_link(&path).map_err(|e| {
             if e.kind() == std::io::ErrorKind::PermissionDenied {
-                Error::PermissionDenied(std::path::PathBuf::from(&path))
+                Error::PermissionDenied(PathBuf::from(&path))
             } else {
                 Error::Io {
-                    path: Some(std::path::PathBuf::from(&path)),
+                    path: Some(PathBuf::from(&path)),
                     error: e,
                 }
             }
@@ -223,10 +235,10 @@ impl Process {
         let path = format!("/proc/{}/cwd", self.pid);
         std::fs::read_link(&path).map_err(|e| {
             if e.kind() == std::io::ErrorKind::PermissionDenied {
-                Error::PermissionDenied(std::path::PathBuf::from(&path))
+                Error::PermissionDenied(PathBuf::from(&path))
             } else {
                 Error::Io {
-                    path: Some(std::path::PathBuf::from(&path)),
+                    path: Some(PathBuf::from(&path)),
                     error: e,
                 }
             }
@@ -240,7 +252,7 @@ impl Process {
     /// inode, and optional backing pathname.
     pub fn maps(&self) -> Result<Vec<MemoryMap>> {
         let path = format!("/proc/{}/maps", self.pid);
-        let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
+        let bytes = parse::read_file(Path::new(&path))?;
         MemoryMap::parse_all(&bytes)
     }
 
@@ -251,7 +263,7 @@ impl Process {
     /// This is significantly larger than `maps` and slower to parse.
     pub fn smaps(&self) -> Result<Vec<MemoryMapDetail>> {
         let path = format!("/proc/{}/smaps", self.pid);
-        let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
+        let bytes = parse::read_file(Path::new(&path))?;
         MemoryMapDetail::parse_all(&bytes)
     }
 
@@ -266,7 +278,7 @@ impl Process {
     pub fn smaps_rollup(&self) -> Result<SmapsRollup> {
         KernelVersion::current()?.require(4, 14)?;
         let path = format!("/proc/{}/smaps_rollup", self.pid);
-        let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
+        let bytes = parse::read_file(Path::new(&path))?;
         SmapsRollup::from_bytes(&bytes)
     }
 
@@ -286,7 +298,7 @@ impl Process {
     /// page cache activity.
     pub fn io(&self) -> Result<ProcessIo> {
         let path = format!("/proc/{}/io", self.pid);
-        let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
+        let bytes = parse::read_file(Path::new(&path))?;
         ProcessIo::from_bytes(&bytes)
     }
 
@@ -297,7 +309,7 @@ impl Process {
     /// as `None`.
     pub fn limits(&self) -> Result<ProcessLimits> {
         let path = format!("/proc/{}/limits", self.pid);
-        let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
+        let bytes = parse::read_file(Path::new(&path))?;
         ProcessLimits::from_bytes(&bytes)
     }
 
@@ -318,7 +330,7 @@ impl Process {
     /// `PTRACE_MODE_ATTACH_FSCREDS` permission.
     pub fn syscall(&self) -> Result<ProcessSyscall> {
         let path = format!("/proc/{}/syscall", self.pid);
-        let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
+        let bytes = parse::read_file(Path::new(&path))?;
         ProcessSyscall::from_bytes(&bytes)
     }
 
@@ -328,7 +340,7 @@ impl Process {
     /// IDs, optional fields, and separate superblock options.
     pub fn mountinfo(&self) -> Result<Vec<MountInfo>> {
         let path = format!("/proc/{}/mountinfo", self.pid);
-        let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
+        let bytes = parse::read_file(Path::new(&path))?;
         MountInfo::parse_all(&bytes)
     }
 
@@ -339,7 +351,7 @@ impl Process {
     /// in the root cgroup for that hierarchy.
     pub fn cgroup(&self) -> Result<Vec<CgroupEntry>> {
         let path = format!("/proc/{}/cgroup", self.pid);
-        let bytes = crate::util::parse::read_file(std::path::Path::new(&path))?;
+        let bytes = parse::read_file(Path::new(&path))?;
         CgroupEntry::parse_all(&bytes)
     }
 
@@ -361,5 +373,83 @@ impl Process {
     /// threads.
     pub fn threads(&self) -> impl Iterator<Item = Result<Self>> {
         threads::read_threads(self.pid)
+    }
+
+    /// Reads `/proc/PID/auxv` and returns the auxiliary vector.
+    ///
+    /// The auxiliary vector carries startup information the kernel
+    /// passes to the dynamic linker, including the page size, ELF
+    /// header pointers, and random bytes.
+    pub fn auxv(&self) -> Result<Auxv> {
+        let path = format!("/proc/{}/auxv", self.pid);
+        let bytes = parse::read_file(Path::new(&path))?;
+        Auxv::from_bytes(&bytes)
+    }
+
+    /// Reads `/proc/PID/pagemap` for a virtual address range.
+    ///
+    /// Returns one [`PageMapEntry`] per page intersecting `start..end`
+    /// (start inclusive, end exclusive). The pagemap covers the whole
+    /// address space, including unmapped holes, so it is read a range
+    /// at a time; use [`Process::maps`] to find the regions worth
+    /// querying.
+    ///
+    /// The page size comes from the process's auxiliary vector
+    /// (`AT_PAGESZ`), so this also reads `/proc/PID/auxv`.
+    ///
+    /// Reading another process's pagemap requires `CAP_SYS_PTRACE`.
+    /// Without it the page frame numbers read back as zero, though
+    /// the present and soft-dirty bits remain visible.
+    ///
+    /// Ranges that extend past the end of the address space (such as
+    /// the `[vsyscall]` mapping on x86_64) yield only the entries the
+    /// kernel can report.
+    pub fn pagemap(&self, start: u64, end: u64) -> Result<Vec<PageMapEntry>> {
+        let page_size = self.auxv()?.page_size();
+        let first = start / page_size;
+        let count = end.div_ceil(page_size).saturating_sub(first);
+
+        if count == 0 {
+            return Ok(Vec::new());
+        }
+
+        let path = format!("/proc/{}/pagemap", self.pid);
+        let mut file = File::open(&path).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                Error::PermissionDenied(PathBuf::from(&path))
+            } else {
+                Error::Io {
+                    path: Some(PathBuf::from(&path)),
+                    error: e,
+                }
+            }
+        })?;
+
+        file.seek(SeekFrom::Start(first * 8))
+            .map_err(|e| Error::Io {
+                path: Some(PathBuf::from(&path)),
+                error: e,
+            })?;
+
+        // Read up to the end of the address space. The kernel stops at
+        // the last page it can map, so an early EOF is not an error.
+        let mut buf = vec![0u8; (count * 8) as usize];
+        let mut filled = 0;
+        while filled < buf.len() {
+            match file.read(&mut buf[filled..]) {
+                Ok(0) => break,
+                Ok(n) => filled += n,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) => {
+                    return Err(Error::Io {
+                        path: Some(PathBuf::from(&path)),
+                        error: e,
+                    });
+                }
+            }
+        }
+        buf.truncate(filled);
+
+        pagemap::parse(&buf)
     }
 }
