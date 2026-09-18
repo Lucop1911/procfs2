@@ -32,8 +32,6 @@ use crate::{
     util::parse,
 };
 use std::{
-    fs::File,
-    io::{Read, Seek, SeekFrom},
     os::unix::ffi::OsStrExt,
     path::{Path, PathBuf},
 };
@@ -408,52 +406,7 @@ impl Process {
     /// the `[vsyscall]` mapping on x86_64) yield only the entries the
     /// kernel can report.
     pub fn pagemap(&self, start: u64, end: u64) -> Result<Vec<PageMapEntry>> {
-        let page_size = self.auxv()?.page_size();
-        let first = start / page_size;
-        let count = end.div_ceil(page_size).saturating_sub(first);
-
-        if count == 0 {
-            return Ok(Vec::new());
-        }
-
-        let path = format!("/proc/{}/pagemap", self.pid);
-        let mut file = File::open(&path).map_err(|e| {
-            if e.kind() == std::io::ErrorKind::PermissionDenied {
-                Error::PermissionDenied(PathBuf::from(&path))
-            } else {
-                Error::Io {
-                    path: Some(PathBuf::from(&path)),
-                    error: e,
-                }
-            }
-        })?;
-
-        file.seek(SeekFrom::Start(first * 8))
-            .map_err(|e| Error::Io {
-                path: Some(PathBuf::from(&path)),
-                error: e,
-            })?;
-
-        // Read up to the end of the address space. The kernel stops at
-        // the last page it can map, so an early EOF is not an error.
-        let mut buf = vec![0u8; (count * 8) as usize];
-        let mut filled = 0;
-        while filled < buf.len() {
-            match file.read(&mut buf[filled..]) {
-                Ok(0) => break,
-                Ok(n) => filled += n,
-                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
-                Err(e) => {
-                    return Err(Error::Io {
-                        path: Some(PathBuf::from(&path)),
-                        error: e,
-                    });
-                }
-            }
-        }
-        buf.truncate(filled);
-
-        pagemap::parse(&buf)
+        pagemap::read(self.pid, start, end)
     }
 
     /// Reads `/proc/PID/statm` and returns the memory summary.
