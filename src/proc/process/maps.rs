@@ -1,4 +1,5 @@
 use std::ops::Range;
+use std::os::unix::ffi::OsStrExt;
 
 use bitflags::bitflags;
 
@@ -381,18 +382,20 @@ fn parse_device(s: &[u8]) -> Result<(u32, u32)> {
 /// Classifies a pathname token from `/proc/PID/maps`.
 ///
 /// Known special names (`[heap]`, `[stack]`, `[vdso]`, etc.) are
-/// mapped to their enum variants. Everything else is treated as a
-/// file path.
+/// matched on their raw bytes and mapped to their enum variants.
+/// Everything else is treated as a file path, preserving the bytes
+/// verbatim: Linux filenames are arbitrary byte sequences, so no
+/// UTF-8 conversion is performed.
 fn parse_pathname(fields: &[&[u8]]) -> MapPathname {
-    let path = std::str::from_utf8(fields[0]).unwrap_or("");
-
-    match path {
-        "[heap]" => MapPathname::Heap,
-        "[stack]" => MapPathname::Stack,
-        "[vdso]" => MapPathname::Vdso,
-        "[vsyscall]" => MapPathname::Vsyscall,
-        "[vvar]" => MapPathname::Vvar,
-        _ => MapPathname::Path(std::path::PathBuf::from(path)),
+    match fields[0] {
+        b"[heap]" => MapPathname::Heap,
+        b"[stack]" => MapPathname::Stack,
+        b"[vdso]" => MapPathname::Vdso,
+        b"[vsyscall]" => MapPathname::Vsyscall,
+        b"[vvar]" => MapPathname::Vvar,
+        _ => MapPathname::Path(std::path::PathBuf::from(std::ffi::OsStr::from_bytes(
+            fields[0],
+        ))),
     }
 }
 

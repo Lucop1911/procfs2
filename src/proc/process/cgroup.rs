@@ -1,5 +1,6 @@
 use crate::error::{Error, Result};
 use crate::util::parse;
+use std::os::unix::ffi::OsStrExt;
 
 /// A single cgroup membership entry from `/proc/PID/cgroup`.
 ///
@@ -61,15 +62,18 @@ impl CgroupEntry {
                 .filter(|c| !c.is_empty())
                 .map(|c| {
                     std::str::from_utf8(c)
-                        .unwrap_or("")
-                        .to_string()
-                        .into_boxed_str()
+                        .map(str::to_owned)
+                        .map(String::into_boxed_str)
+                        .map_err(|_| Error::Parse {
+                            path: std::path::PathBuf::from("<cgroup>"),
+                            line: 0,
+                            msg: "controller name is not valid UTF-8",
+                        })
                 })
-                .collect()
+                .collect::<Result<Vec<_>>>()?
         };
 
-        let path =
-            std::path::PathBuf::from(std::str::from_utf8(fields[2]).unwrap_or("/").to_string());
+        let path = std::path::PathBuf::from(std::ffi::OsStr::from_bytes(fields[2]));
 
         Ok(CgroupEntry {
             hierarchy,
