@@ -34,6 +34,14 @@ fn main() {
     println!("UTime: {} jiffies", stat.utime);
     println!("STime: {} jiffies", stat.stime);
 
+    println!("\n=== /proc/self/statm ===");
+    let statm = me.statm().unwrap();
+    println!("Size: {} pages", statm.size);
+    println!("Resident: {} pages", statm.resident);
+    println!("Shared: {} pages", statm.shared);
+    println!("Text: {} pages", statm.text);
+    println!("Data: {} pages", statm.data);
+
     println!("\n=== /proc/self/status ===");
     let status = me.status().unwrap();
     println!("Name: {}", status.name);

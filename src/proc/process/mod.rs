@@ -8,6 +8,7 @@ mod mountinfo;
 mod ns;
 mod pagemap;
 mod stat;
+mod statm;
 mod status;
 mod syscall;
 mod threads;
@@ -22,6 +23,7 @@ pub use mountinfo::MountInfo;
 pub use ns::Namespaces;
 pub use pagemap::PageMapEntry;
 pub use stat::ProcessStat;
+pub use statm::Statm;
 pub use status::{Gids, ProcessState, ProcessStatus, Uids};
 pub use syscall::{ProcessSyscall, SyscallState};
 
@@ -452,5 +454,16 @@ impl Process {
         buf.truncate(filled);
 
         pagemap::parse(&buf)
+    }
+
+    /// Reads `/proc/PID/statm` and returns the memory summary.
+    ///
+    /// Seven page counts covering total size, resident set, shared
+    /// (file-backed), text, libraries, data, and dirty pages. All
+    /// values are in pages, not bytes.
+    pub fn statm(&self) -> Result<Statm> {
+        let path = format!("/proc/{}/statm", self.pid);
+        let bytes = parse::read_file(Path::new(&path))?;
+        Statm::from_bytes(&bytes)
     }
 }

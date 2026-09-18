@@ -260,6 +260,51 @@ mod tests {
     }
 
     #[test]
+    fn test_live_process_statm() {
+        let me = Process::current().expect("Failed to get current process");
+        let statm = me.statm().expect("Failed to read process statm");
+
+        // Every running process occupies at least one resident page.
+        assert!(
+            statm.size >= statm.resident,
+            "size should cover the resident set"
+        );
+        assert!(statm.resident > 0, "process should have resident pages");
+        assert!(
+            statm.text + statm.data <= statm.size,
+            "text and data should fit within size"
+        );
+    }
+
+    #[test]
+    fn test_live_process_statm_obsolete_fields() {
+        let me = Process::current().expect("Failed to get current process");
+        let statm = me.statm().expect("Failed to read process statm");
+
+        // lib and dt have been zero since Linux 2.6.
+        assert_eq!(statm.lib, 0, "lib should be zero");
+        assert_eq!(statm.dt, 0, "dt should be zero");
+    }
+
+    #[test]
+    fn test_live_process_statm_matches_stat() {
+        let me = Process::current().expect("Failed to get current process");
+        let statm = me.statm().expect("Failed to read process statm");
+        let stat = me.stat().expect("Failed to read process stat");
+
+        // statm.resident and stat.rss are the same value in pages.
+        // The two reads race with the process's own page activity, so
+        // allow a little slack between them.
+        let rss = stat.rss.max(0);
+        let diff = (statm.resident as i64 - rss).unsigned_abs();
+        assert!(
+            diff < 1000,
+            "statm resident ({}) should track stat rss ({rss})",
+            statm.resident
+        );
+    }
+
+    #[test]
     fn test_live_process_auxv() {
         let me = Process::current().expect("Failed to get current process");
         let auxv = me.auxv().expect("Failed to read process auxv");
