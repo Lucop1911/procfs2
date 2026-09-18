@@ -1,6 +1,12 @@
-use std::path::PathBuf;
+use std::{
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+    path::{Path, PathBuf},
+};
 
+use super::Auxv;
 use crate::error::{Error, Result};
+use crate::util::parse::read_file;
 
 /// A single entry from `/proc/PID/pagemap`.
 ///
@@ -60,6 +66,62 @@ impl PageMapEntry {
     pub fn is_mapped(&self) -> bool {
         self.present || self.swapped
     }
+}
+
+/// Parses the pagemap of a process for a virtual address range.
+///
+/// Returns one [`PageMapEntry`] per page intersecting `start..end`.
+/// The page size is taken from the process's auxiliary vector. This
+/// is the I/O counterpart to [`parse`], which handles the bytes once
+/// they are in memory.
+pub(super) fn read(pid: u32, start: u64, end: u64) -> Result<Vec<PageMapEntry>> {
+    let bytes = read_file(Path::new(&format!("/proc/{}/auxv", pid)))?;
+    let page_size = Auxv::from_bytes(&bytes)?.page_size();
+    let first = start / page_size;
+    let count = end.div_ceil(page_size).saturating_sub(first);
+
+    if count == 0 {
+        return Ok(Vec::new());
+    }
+
+    let path = format!("/proc/{}/pagemap", pid);
+    let mut file = File::open(&path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::PermissionDenied {
+            Error::PermissionDenied(PathBuf::from(&path))
+        } else {
+            Error::Io {
+                path: Some(PathBuf::from(&path)),
+                error: e,
+            }
+        }
+    })?;
+
+    file.seek(SeekFrom::Start(first * 8))
+        .map_err(|e| Error::Io {
+            path: Some(PathBuf::from(&path)),
+            error: e,
+        })?;
+
+    // Read up to the end of the address space. The kernel stops at
+    // the last page it can map, so an early EOF is not an error.
+    let mut buf = vec![0u8; (count * 8) as usize];
+    let mut filled = 0;
+    while filled < buf.len() {
+        match file.read(&mut buf[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) => {
+                return Err(Error::Io {
+                    path: Some(PathBuf::from(&path)),
+                    error: e,
+                });
+            }
+        }
+    }
+    buf.truncate(filled);
+
+    parse(&buf)
 }
 
 /// Parses a buffer of `/proc/PID/pagemap` entries.
