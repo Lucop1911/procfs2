@@ -20,8 +20,16 @@ jobs:
 
       # procfs2 depends on procfs2-macros (path dep), so the macros
       # crate must be published first or the registry lookup fails.
+      # cargo info succeeds only if the version already exists, so
+      # we skip when the macros version did not change.
       - name: Publish procfs2-macros
-        run: cargo publish -p procfs2-macros
+        run: |
+          version=$(cargo pkgid -p procfs2-macros | awk -F'[@#]' '{print $NF}')
+          if cargo info "procfs2-macros@${version}" >/dev/null 2>&1; then
+            echo "procfs2-macros@${version} already published; skipping"
+          else
+            cargo publish -p procfs2-macros
+          fi
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
 
