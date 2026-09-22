@@ -419,4 +419,21 @@ impl Process {
         let bytes = parse::read_file(Path::new(&path))?;
         Statm::from_bytes(&bytes)
     }
+
+    /// Reads `/proc/PID/loginuid` and returns the login uid.
+    ///
+    /// The login uid is set by `pam_loginuid` at login and identifies
+    /// the user a process was logged in as, surviving `setuid` and
+    /// namespace transitions. It is `u32::MAX` when no login uid has
+    /// been assigned (e.g. system services started before login).
+    ///
+    /// The file only exists if auditing is enabled in the kernel
+    /// (`CONFIG_AUDITSYSCALL`); otherwise this returns an
+    /// [`Error::Io`] not-found error.
+    pub fn loginuid(&self) -> Result<u32> {
+        let path = format!("/proc/{}/loginuid", self.pid);
+        let bytes = parse::read_file(Path::new(&path))?;
+
+        parse::parse_dec_u32(&bytes)
+    }
 }
