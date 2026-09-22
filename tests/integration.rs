@@ -29,6 +29,21 @@ mod tests {
         }
     }
 
+    /// `/proc/PID/loginuid` only exists when the kernel was built with
+    /// auditing enabled (`CONFIG_AUDITSYSCALL`). Returns `None` when
+    /// the file is absent for that reason; panics on other failures.
+    fn loginuid_or_skip(process: &Process) -> Option<u32> {
+        match process.loginuid() {
+            Ok(uid) => Some(uid),
+            Err(procfs2::Error::Io { error: e, .. })
+                if e.kind() == std::io::ErrorKind::NotFound =>
+            {
+                None
+            }
+            Err(e) => panic!("Failed to read process loginuid: {e}"),
+        }
+    }
+
     #[test]
     fn test_live_meminfo() {
         let info = meminfo().expect("Failed to read /proc/meminfo");
@@ -389,6 +404,53 @@ mod tests {
             .pagemap(0x1000, 0x1000)
             .expect("Failed to read process pagemap");
         assert!(entries.is_empty(), "empty range should yield no entries");
+    }
+
+    #[test]
+    fn test_live_process_loginuid() {
+        let me = Process::current().expect("Failed to get current process");
+
+        // The kernel allows the login uid to be set only once per
+        // process, so two reads must agree.
+        let a = loginuid_or_skip(&me).expect("kernels without auditing skip this");
+        let b = loginuid_or_skip(&me).expect("kernels without auditing skip this");
+        assert_eq!(a, b, "loginuid should be immutable for a process");
+    }
+
+    #[test]
+    fn test_live_process_loginuid_matches_file() {
+        let me = Process::current().expect("Failed to get current process");
+
+        // Compare against the raw file, which the kernel writes as a
+        // single decimal number plus newline.
+        let raw = std::fs::read_to_string("/proc/self/loginuid")
+            .expect("loginuid file should exist on this kernel");
+        let expected: u32 = raw.trim().parse().expect("invalid loginuid in file");
+        let parsed = loginuid_or_skip(&me).expect("kernels without auditing skip this");
+        assert_eq!(parsed, expected, "parse should match raw file contents");
+    }
+
+    #[test]
+    fn test_live_process_loginuid_inherited() {
+        let me = Process::current().expect("Failed to get current process");
+        let parent = loginuid_or_skip(&me).expect("kernels without auditing skip this");
+
+        // /proc/PID/loginuid is mode 0644, readable for any process.
+        let mut child = std::process::Command::new("/bin/sleep")
+            .arg("1")
+            .spawn()
+            .expect("Failed to spawn child process");
+        let child_proc = Process::new(child.id()).expect("Failed to get child process");
+        let child_loginuid = child_proc
+            .loginuid()
+            .expect("Failed to read child loginuid");
+        child.wait().expect("Failed to wait on child");
+
+        // The login uid survives fork, so the child inherits ours.
+        assert_eq!(
+            child_loginuid, parent,
+            "child should inherit parent's loginuid"
+        );
     }
 
     #[test]
