@@ -1,5 +1,8 @@
 use std::{
-    ffi::OsStr, fs::File, io::{Read, Seek, SeekFrom}, path::{Path, PathBuf},
+    ffi::OsStr,
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+    path::{Path, PathBuf},
 };
 
 use super::Auxv;
@@ -72,7 +75,12 @@ impl PageMapEntry {
 /// The page size is taken from the process's auxiliary vector. This
 /// is the I/O counterpart to [`parse`], which handles the bytes once
 /// they are in memory.
-pub(super) fn read(path: &OsStr, auxv_path: &OsStr, start: u64, end: u64) -> Result<Vec<PageMapEntry>> {
+pub(super) fn read(
+    path: &OsStr,
+    auxv_path: &OsStr,
+    start: u64,
+    end: u64,
+) -> Result<Vec<PageMapEntry>> {
     let bytes = read_file(Path::new(auxv_path))?;
     let page_size = Auxv::from_bytes(&bytes)?.page_size();
     let first = start / page_size;

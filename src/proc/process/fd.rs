@@ -1,4 +1,7 @@
-use crate::{error::{Error, Result}, proc::process::proc_path};
+use crate::{
+    error::{Error, Result},
+    proc::process::proc_path,
+};
 
 /// Target of a file descriptor symlink in `/proc/PID/fd/`.
 ///
@@ -76,7 +79,7 @@ pub struct Fd {
 pub fn read_fds(pid: u32) -> Result<Vec<Fd>> {
     let mut buf = [0u8; 32];
     let path = proc_path(&mut buf, pid, "/fd");
-    
+
     let entries = std::fs::read_dir(path).map_err(|e| {
         if e.kind() == std::io::ErrorKind::PermissionDenied {
             Error::PermissionDenied(std::path::PathBuf::from(path))

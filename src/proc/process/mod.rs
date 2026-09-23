@@ -32,7 +32,9 @@ use crate::{
     util::parse,
 };
 use std::{
-    ffi::OsStr, os::unix::ffi::OsStrExt, path::{Path, PathBuf},
+    ffi::OsStr,
+    os::unix::ffi::OsStrExt,
+    path::{Path, PathBuf},
 };
 
 /// A handle to a running process, identified by its PID.
