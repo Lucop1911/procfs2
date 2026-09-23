@@ -23,6 +23,7 @@ async-stream = { version = "0.3.6", optional = true }
 futures-core = { version = "0.3.34", optional = true }
 serde = { version = "1.0.229", features = ["derive"], optional = true }
 procfs2-macros = { path = "./procfs2-macros", version = "0.1.0", optional = true }
+memchr = "2.8.3"
 
 [[bench]]
 name = "procfs2_bench"

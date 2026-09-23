@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use memchr::{memchr as memchr_simd, memchr2};
 
 /// Reads an entire file into a `Vec<u8>`.
 ///
@@ -35,11 +36,13 @@ pub fn split_at_byte(slice: &[u8], byte: u8) -> (&[u8], &[u8]) {
 ///
 /// Equivalent to `slice.iter().position(|&b| b == byte)` but named
 /// consistently with the C library function.
+#[inline]
 pub fn memchr(byte: u8, slice: &[u8]) -> Option<usize> {
-    slice.iter().position(|&b| b == byte)
+    memchr_simd(byte, slice)
 }
 
 /// Trims trailing whitespace: space, tab, newline, carriage return.
+#[inline]
 pub fn trim_end(slice: &[u8]) -> &[u8] {
     let end = slice
         .iter()
@@ -51,6 +54,7 @@ pub fn trim_end(slice: &[u8]) -> &[u8] {
 }
 
 /// Trims leading whitespace: space, tab, newline, carriage return.
+#[inline]
 pub fn trim_start(slice: &[u8]) -> &[u8] {
     let start = slice
         .iter()
@@ -62,6 +66,7 @@ pub fn trim_start(slice: &[u8]) -> &[u8] {
 }
 
 /// Trims both leading and trailing whitespace.
+#[inline]
 pub fn trim(slice: &[u8]) -> &[u8] {
     trim_start(trim_end(slice))
 }
@@ -71,6 +76,7 @@ pub fn trim(slice: &[u8]) -> &[u8] {
 /// The key is everything before the first `:`, trimmed on the right.
 /// The value is everything after the `:`, trimmed on the right.
 /// Returns `None` if no colon is found.
+#[inline]
 pub fn parse_key_value_line(line: &[u8]) -> Option<(&[u8], &[u8])> {
     let idx = memchr(b':', line)?;
     let key = trim_end(&line[..idx]);
@@ -338,6 +344,7 @@ pub struct SplitFields<'a, const N: usize> {
 
 impl<'a, const N: usize> SplitFields<'a, N> {
     /// Splits `slice` on runs of spaces and tabs.
+    #[inline]
     pub fn new(slice: &'a [u8]) -> Self {
         const EMPTY: &[u8] = &[];
         let mut fields = [EMPTY; N];
@@ -369,8 +376,9 @@ impl<'a, const N: usize> std::ops::Deref for SplitFields<'a, N> {
 /// Used to strip unit suffixes (e.g. the ` kB` in `9764412 kB`)
 /// from key-value fields in `/proc/meminfo` and `/proc/PID/status`
 /// before parsing the numeric part.
+#[inline]
 pub fn first_token(slice: &[u8]) -> &[u8] {
-    match memchr(b' ', slice).or_else(|| memchr(b'\t', slice)) {
+    match memchr2(b' ', b'\t', slice) {
         Some(idx) => &slice[..idx],
         None => slice,
     }
