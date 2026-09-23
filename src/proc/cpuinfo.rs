@@ -73,6 +73,7 @@ fn parse_cpu_flags(value: &[u8]) -> Vec<CpuFlag> {
 /// The `cache size` field includes a unit suffix (` KB`) that is
 /// stripped before parsing. All other fields are parsed directly.
 fn parse_cpu_field(key: &[u8], value: &[u8]) -> CpuFieldValue {
+    let value = parse::trim_start(value);
     match key {
         b"processor" => CpuFieldValue::U32(parse::parse_dec_u32(value).unwrap_or(0)),
         b"vendor_id" => CpuFieldValue::Str(bytes_to_box_str(value)),
