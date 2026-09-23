@@ -3,7 +3,7 @@ members = ["procfs2-macros", "."]
 
 [package]
 name = "procfs2"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["lucop1911"]
 edition = "2024"
 rust-version = "1.86"
