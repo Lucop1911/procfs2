@@ -1,7 +1,5 @@
 use std::{
-    fs::File,
-    io::{Read, Seek, SeekFrom},
-    path::{Path, PathBuf},
+    ffi::OsStr, fs::File, io::{Read, Seek, SeekFrom}, path::{Path, PathBuf},
 };
 
 use super::Auxv;
@@ -74,8 +72,8 @@ impl PageMapEntry {
 /// The page size is taken from the process's auxiliary vector. This
 /// is the I/O counterpart to [`parse`], which handles the bytes once
 /// they are in memory.
-pub(super) fn read(pid: u32, start: u64, end: u64) -> Result<Vec<PageMapEntry>> {
-    let bytes = read_file(Path::new(&format!("/proc/{}/auxv", pid)))?;
+pub(super) fn read(path: &OsStr, auxv_path: &OsStr, start: u64, end: u64) -> Result<Vec<PageMapEntry>> {
+    let bytes = read_file(Path::new(auxv_path))?;
     let page_size = Auxv::from_bytes(&bytes)?.page_size();
     let first = start / page_size;
     let count = end.div_ceil(page_size).saturating_sub(first);
@@ -84,8 +82,7 @@ pub(super) fn read(pid: u32, start: u64, end: u64) -> Result<Vec<PageMapEntry>> 
         return Ok(Vec::new());
     }
 
-    let path = format!("/proc/{}/pagemap", pid);
-    let mut file = File::open(&path).map_err(|e| {
+    let mut file = File::open(path).map_err(|e| {
         if e.kind() == std::io::ErrorKind::PermissionDenied {
             Error::PermissionDenied(PathBuf::from(&path))
         } else {

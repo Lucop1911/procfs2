@@ -1,3 +1,5 @@
+use std::ffi::OsStr;
+
 use crate::error::{Error, Result};
 
 /// Namespace inode numbers for a process.
@@ -37,7 +39,7 @@ impl Namespaces {
     ///
     /// Unknown symlinks (e.g. future kernel additions) are silently
     /// ignored. Missing namespaces remain as `None`.
-    pub fn from_dir(path: &str) -> Result<Self> {
+    pub fn from_dir(path: &OsStr) -> Result<Self> {
         let mut cgroup = None;
         let mut ipc = None;
         let mut mnt = None;

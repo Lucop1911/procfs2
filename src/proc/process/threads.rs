@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::proc::process::Process;
+use crate::proc::process::{Process, proc_path};
 
 /// Iterates over the threads of a process.
 ///
@@ -8,12 +8,13 @@ use crate::proc::process::Process;
 /// allowing all `Process` methods to be called on individual
 /// threads.
 pub fn read_threads(pid: u32) -> impl Iterator<Item = Result<Process>> {
-    let task_path = format!("/proc/{}/task", pid);
-    let entries = match std::fs::read_dir(&task_path) {
+    let mut buf = [0u8; 32];
+    let path = proc_path(&mut buf, pid, "/task");
+    let entries = match std::fs::read_dir(path) {
         Ok(iter) => iter,
         Err(e) => {
             return vec![Err(Error::Io {
-                path: Some(std::path::PathBuf::from(&task_path)),
+                path: Some(std::path::PathBuf::from(&path)),
                 error: e,
             })]
             .into_iter();
@@ -33,7 +34,7 @@ pub fn read_threads(pid: u32) -> impl Iterator<Item = Result<Process>> {
                 }
             }
             Err(e) => Some(Err(Error::Io {
-                path: Some(std::path::PathBuf::from(&task_path)),
+                path: Some(std::path::PathBuf::from(&path)),
                 error: e,
             })),
         })
