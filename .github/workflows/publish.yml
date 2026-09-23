@@ -18,14 +18,32 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
+      # Checks crates.io's sparse index for a crate version. Do NOT use
+      # `cargo info` for this: it resolves `procfs2-macros@<version>` to
+      # the same-named local path package in this checkout, so it reports
+      # "already published" even for a version that was never uploaded.
+      #
+      # The index path is `<name[0..2]>/<name[2..4]>/<full name>`, and each
+      # published version appears as a `"vers":"X.Y.Z"` field in the file.
+      - name: Guard against republishing an existing procfs2 version
+        shell: bash
+        run: |
+          version=$(cargo pkgid -p procfs2 | awk -F'[@#]' '{print $NF}')
+          if curl -fsS "https://index.crates.io/pr/oc/procfs2" | grep -q "\"vers\":\"${version}\""; then
+            echo "::error::procfs2@${version} is already on crates.io; bump the version in Cargo.toml before tagging"
+            exit 1
+          fi
+          echo "procfs2@${version} is new to crates.io; continuing"
+
       # procfs2 depends on procfs2-macros (path dep), so the macros
       # crate must be published first or the registry lookup fails.
-      # cargo info succeeds only if the version already exists, so
-      # we skip when the macros version did not change.
+      # It is published only when this checkout's version is not yet
+      # on crates.io, so bumping just procfs2 skips this step.
       - name: Publish procfs2-macros
+        shell: bash
         run: |
           version=$(cargo pkgid -p procfs2-macros | awk -F'[@#]' '{print $NF}')
-          if cargo info "procfs2-macros@${version}" >/dev/null 2>&1; then
+          if curl -fsS "https://index.crates.io/pr/oc/procfs2-macros" | grep -q "\"vers\":\"${version}\""; then
             echo "procfs2-macros@${version} already published; skipping"
           else
             cargo publish -p procfs2-macros
