@@ -108,20 +108,26 @@ pub fn pagetypeinfo() -> Result<PageTypeInfo> {
         if let Some((key, value)) = parse::parse_key_value_line(line) {
             match key {
                 b"Page block order" => {
-                    page_block_order = parse::parse_dec_u64(value).map_err(|_| Error::Parse {
-                        path: path.to_path_buf(),
-                        line: line_num + 1,
-                        msg: "invalid page block order",
-                    })?;
+                    page_block_order =
+                        parse::parse_dec_u64(parse::trim_start(value)).map_err(|_| {
+                            Error::Parse {
+                                path: path.to_path_buf(),
+                                line: line_num + 1,
+                                msg: "invalid page block order",
+                            }
+                        })?;
                     section = None;
                     continue;
                 }
                 b"Pages per block" => {
-                    pages_per_block = parse::parse_dec_u64(value).map_err(|_| Error::Parse {
-                        path: path.to_path_buf(),
-                        line: line_num + 1,
-                        msg: "invalid pages per block",
-                    })?;
+                    pages_per_block =
+                        parse::parse_dec_u64(parse::trim_start(value)).map_err(|_| {
+                            Error::Parse {
+                                path: path.to_path_buf(),
+                                line: line_num + 1,
+                                msg: "invalid pages per block",
+                            }
+                        })?;
                 }
                 _ => {}
             }

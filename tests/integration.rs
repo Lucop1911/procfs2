@@ -81,6 +81,33 @@ mod tests {
     }
 
     #[test]
+    fn test_live_cpuinfo_fields() {
+        let cpus = cpuinfo().expect("Failed to read /proc/cpuinfo");
+
+        // Every core should report a positive clock speed and family.
+        for cpu in &cpus {
+            assert!(cpu.cpu_mhz > 0.0, "cpu MHz should be a positive value");
+            assert!(cpu.cpu_family > 0, "cpu family should be a positive value");
+            assert!(!cpu.model_name.is_empty(), "model name should not be empty");
+        }
+    }
+
+    #[test]
+    fn test_live_cpuinfo_dedup() {
+        let cpus = cpuinfo().expect("Failed to read /proc/cpuinfo");
+
+        // No CPU should share the same processor number.
+        let mut processors: Vec<u32> = cpus.iter().map(|c| c.processor).collect();
+        processors.sort_unstable();
+        processors.dedup();
+        assert_eq!(
+            processors.len(),
+            cpus.len(),
+            "processor numbers should be unique"
+        );
+    }
+
+    #[test]
     fn test_live_current_process() {
         let process = Process::current().expect("Failed to get current process");
         assert!(process.pid > 0, "PID should be > 0");
