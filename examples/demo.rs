@@ -194,6 +194,11 @@ fn main() {
     let sessionid = me.sessionid().unwrap();
     println!("Session id: {}", sessionid);
 
+    println!("\n=== /proc/self/coredump_filter ===");
+    let coredump_filter = me.coredump_filter().unwrap();
+    println!("Mask: {:#04x}", coredump_filter.bits());
+    println!("Flags: {:?}", coredump_filter);
+
     println!("\n=== /proc/stat (CPU) ===");
     let sys_stat = proc::stat().unwrap();
     println!("Context switches: {}", sys_stat.ctxt);
