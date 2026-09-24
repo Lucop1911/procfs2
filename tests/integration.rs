@@ -44,6 +44,21 @@ mod tests {
         }
     }
 
+    /// `/proc/PID/sessionid` has the same `CONFIG_AUDITSYSCALL`
+    /// dependency as loginuid. Returns `None` when absent for that
+    /// reason; panics on other failures.
+    fn sessionid_or_skip(process: &Process) -> Option<u32> {
+        match process.sessionid() {
+            Ok(sid) => Some(sid),
+            Err(procfs2::Error::Io { error: e, .. })
+                if e.kind() == std::io::ErrorKind::NotFound =>
+            {
+                None
+            }
+            Err(e) => panic!("Failed to read process sessionid: {e}"),
+        }
+    }
+
     #[test]
     fn test_live_meminfo() {
         let info = meminfo().expect("Failed to read /proc/meminfo");
@@ -477,6 +492,53 @@ mod tests {
         assert_eq!(
             child_loginuid, parent,
             "child should inherit parent's loginuid"
+        );
+    }
+
+    #[test]
+    fn test_live_process_sessionid() {
+        let me = Process::current().expect("Failed to get current process");
+
+        // The audit session id is fixed for a process, so two reads
+        // must agree.
+        let a = sessionid_or_skip(&me).expect("kernels without auditing skip this");
+        let b = sessionid_or_skip(&me).expect("kernels without auditing skip this");
+        assert_eq!(a, b, "sessionid should be immutable for a process");
+    }
+
+    #[test]
+    fn test_live_process_sessionid_matches_file() {
+        let me = Process::current().expect("Failed to get current process");
+
+        // Compare against the raw file, which the kernel writes as a
+        // single decimal number plus newline.
+        let raw = std::fs::read_to_string("/proc/self/sessionid")
+            .expect("sessionid file should exist on this kernel");
+        let expected: u32 = raw.trim().parse().expect("invalid sessionid in file");
+        let parsed = sessionid_or_skip(&me).expect("kernels without auditing skip this");
+        assert_eq!(parsed, expected, "parse should match raw file contents");
+    }
+
+    #[test]
+    fn test_live_process_sessionid_inherited() {
+        let me = Process::current().expect("Failed to get current process");
+        let parent = sessionid_or_skip(&me).expect("kernels without auditing skip this");
+
+        // /proc/PID/sessionid is mode 0444, readable for any process.
+        let mut child = std::process::Command::new("/bin/sleep")
+            .arg("1")
+            .spawn()
+            .expect("Failed to spawn child process");
+        let child_proc = Process::new(child.id()).expect("Failed to get child process");
+        let child_sessionid = child_proc
+            .sessionid()
+            .expect("Failed to read child sessionid");
+        child.wait().expect("Failed to wait on child");
+
+        // The audit session id survives fork, so the child inherits ours.
+        assert_eq!(
+            child_sessionid, parent,
+            "child should inherit parent's sessionid"
         );
     }
 
