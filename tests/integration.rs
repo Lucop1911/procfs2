@@ -6,6 +6,7 @@
 
 #[cfg(test)]
 mod tests {
+    use procfs2::proc::process::CoreDumpFilter;
     use procfs2::proc::{
         ConsoleFlags, DeviceKind, Process, buddyinfo, consoles, cpu_pressure, cpuinfo, crypto,
         devices, diskstats, filesystems, interrupts, io_pressure, iomem, ioports, irq_pressure,
@@ -56,6 +57,21 @@ mod tests {
                 None
             }
             Err(e) => panic!("Failed to read process sessionid: {e}"),
+        }
+    }
+
+    /// `/proc/PID/coredump_filter` only exists when the kernel was built
+    /// with core dump support (`CONFIG_ELF_CORE`). Returns `None` when
+    /// absent for that reason; panics on other failures.
+    fn coredump_filter_or_skip(process: &Process) -> Option<CoreDumpFilter> {
+        match process.coredump_filter() {
+            Ok(filter) => Some(filter),
+            Err(procfs2::Error::Io { error: e, .. })
+                if e.kind() == std::io::ErrorKind::NotFound =>
+            {
+                None
+            }
+            Err(e) => panic!("Failed to read process coredump_filter: {e}"),
         }
     }
 
@@ -539,6 +555,67 @@ mod tests {
         assert_eq!(
             child_sessionid, parent,
             "child should inherit parent's sessionid"
+        );
+    }
+
+    #[test]
+    fn test_live_process_coredump_filter() {
+        let me = Process::current().expect("Failed to get current process");
+        let filter =
+            coredump_filter_or_skip(&me).expect("kernels without core dump support skip this");
+
+        // The filter lives in the address space, and only changed through
+        // an explicit write, so two reads must agree.
+        let again =
+            coredump_filter_or_skip(&me).expect("kernels without core dump support skip this");
+        assert_eq!(
+            filter, again,
+            "coredump_filter should be stable for a process"
+        );
+    }
+
+    #[test]
+    fn test_live_process_coredump_filter_matches_file() {
+        let me = Process::current().expect("Failed to get current process");
+
+        // Compare against the raw file, which the kernel writes as eight
+        // zero-padded hex digits plus newline, e.g. 00000033.
+        let raw = std::fs::read_to_string("/proc/self/coredump_filter")
+            .expect("coredump_filter file should exist on this kernel");
+        let expected =
+            u32::from_str_radix(raw.trim(), 16).expect("invalid coredump_filter in file");
+        let parsed =
+            coredump_filter_or_skip(&me).expect("kernels without core dump support skip this");
+        assert_eq!(
+            parsed.bits(),
+            expected,
+            "parse should match raw file contents"
+        );
+    }
+
+    #[test]
+    fn test_live_process_coredump_filter_inherited() {
+        let me = Process::current().expect("Failed to get current process");
+        let parent =
+            coredump_filter_or_skip(&me).expect("kernels without core dump support skip this");
+
+        // /proc/PID/coredump_filter is mode 0644, readable for any
+        // process, and its value is inherited via fork.
+        let mut child = std::process::Command::new("/bin/sleep")
+            .arg("1")
+            .spawn()
+            .expect("Failed to spawn child process");
+        let child_proc = Process::new(child.id()).expect("Failed to get child process");
+        let child_filter = child_proc
+            .coredump_filter()
+            .expect("Failed to read child coredump_filter");
+        child.wait().expect("Failed to wait on child");
+
+        // The filter is per-address-space, and the child shares the
+        // parent's address space at fork.
+        assert_eq!(
+            child_filter, parent,
+            "child should inherit parent's coredump_filter"
         );
     }
 

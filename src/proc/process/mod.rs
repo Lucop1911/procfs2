@@ -1,5 +1,6 @@
 mod auxv;
 mod cgroup;
+mod coredump_filter;
 mod fd;
 mod io;
 mod limits;
@@ -15,6 +16,7 @@ mod threads;
 
 pub use auxv::{Auxv, AuxvEntry, auxv_type};
 pub use cgroup::CgroupEntry;
+pub use coredump_filter::CoreDumpFilter;
 pub use fd::{Fd, FdTarget};
 pub use io::ProcessIo;
 pub use limits::{Limit, LimitUnit, ProcessLimits};
@@ -479,6 +481,22 @@ impl Process {
         let bytes = parse::read_file(Path::new(&path))?;
 
         parse::parse_dec_u32(&bytes)
+    }
+
+    /// Reads `/proc/PID/coredump_filter` and returns the core dump filter.
+    ///
+    /// A bitmask of the memory mapping types included when the process
+    /// dumps core. The value is inherited by `fork` and preserved across
+    /// `execve`.
+    ///
+    /// The file only exists if the kernel was built with `CONFIG_ELF_CORE`.
+    /// Kernel threads have no address space and report an empty filter.
+    pub fn coredump_filter(&self) -> Result<CoreDumpFilter> {
+        let mut buf = [0u8; 32];
+        let path = proc_path(&mut buf, self.pid, "/coredump_filter");
+        let bytes = parse::read_file(Path::new(path))?;
+
+        CoreDumpFilter::from_bytes(&bytes)
     }
 }
 
