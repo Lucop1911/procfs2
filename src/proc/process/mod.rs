@@ -461,6 +461,25 @@ impl Process {
 
         parse::parse_dec_u32(&bytes)
     }
+
+    /// Reads `/proc/PID/sessionid` and returns the audit session id.
+    ///
+    /// The audit session id identifies the login session a process
+    /// belongs to. It is inherited by children and survives `setuid`
+    /// and namespace transitions, tying together all processes started
+    /// from one login. Kernel threads and processes started before any
+    /// login report `u32::MAX`.
+    ///
+    /// The file only exists if auditing is enabled in the kernel
+    /// (`CONFIG_AUDITSYSCALL`); otherwise this returns an
+    /// [`Error::Io`] not-found error.
+    pub fn sessionid(&self) -> Result<u32> {
+        let mut buf = [0u8; 32];
+        let path = proc_path(&mut buf, self.pid, "/sessionid");
+        let bytes = parse::read_file(Path::new(&path))?;
+
+        parse::parse_dec_u32(&bytes)
+    }
 }
 
 fn write_u32(mut n: u32, buf: &mut [u8]) -> usize {

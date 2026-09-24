@@ -190,6 +190,10 @@ fn main() {
     let loginuid = me.loginuid().unwrap();
     println!("Loginuid: {}", loginuid);
 
+    println!("\n=== /proc/self/sessionid ===");
+    let sessionid = me.sessionid().unwrap();
+    println!("Session id: {}", sessionid);
+
     println!("\n=== /proc/stat (CPU) ===");
     let sys_stat = proc::stat().unwrap();
     println!("Context switches: {}", sys_stat.ctxt);
