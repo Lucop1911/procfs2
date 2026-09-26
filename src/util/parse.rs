@@ -317,10 +317,17 @@ pub fn parse_dec_f64(s: &[u8]) -> Result<f64> {
         })
 }
 
-/// Splits a byte slice on runs of spaces and tabs.
+/// Splits a byte slice on runs of spaces and tabs, returning the
+/// fields in a heap-allocated `Vec`.
 ///
 /// Unlike `split(|&b| b == b' ' || b == b'\t')`, this does not
 /// produce empty segments for consecutive whitespace.
+///
+/// Prefer the allocation-free [`SplitFields`] when the number of
+/// fields is bounded: most `/proc` writers emit a fixed column count,
+/// and `SplitFields` keeps the fields in a stack buffer rather than
+/// paying a heap allocation for every line. Reserve `split_spaces`
+/// for rows whose field count genuinely varies with the system
 pub fn split_spaces(slice: &[u8]) -> Vec<&[u8]> {
     slice
         .split(|&b| b == b' ' || b == b'\t')

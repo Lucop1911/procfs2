@@ -41,7 +41,7 @@ pub fn cgroups() -> Result<Vec<Cgroup>> {
             continue;
         }
 
-        let fields: Vec<&[u8]> = parse::split_spaces(line);
+        let fields = parse::SplitFields::<4>::new(line);
         if fields.len() < 4 {
             return Err(Error::Parse {
                 path: path.to_path_buf(),
