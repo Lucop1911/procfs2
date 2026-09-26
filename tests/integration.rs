@@ -1528,15 +1528,11 @@ mod tests {
 
     #[test]
     fn test_live_irq_pressure() {
-        let psi = match irq_pressure() {
-            Ok(psi) => psi,
-            // /proc/pressure/irq is absent on some kernels / CI runners.
-            Err(procfs2::Error::Io { error: e, .. })
-                if e.kind() == std::io::ErrorKind::NotFound =>
-            {
-                return;
-            }
-            Err(e) => panic!("Failed to read /proc/pressure/irq: {e}"),
+        // IRQ pressure is not compiled in on some kernels; the library
+        // reports that as None rather than an error.
+        let Some(psi) = irq_pressure().expect("Failed to read /proc/pressure/irq (when supported)")
+        else {
+            return;
         };
 
         // IRQ only reports `full`; averages are non-negative percentages.
