@@ -658,6 +658,52 @@ mod tests {
     }
 
     #[test]
+    fn test_live_process_oom_score_adj() {
+        let me = Process::current().expect("Failed to get current process");
+
+        // oom_score_adj only changes via an explicit write, so two
+        // reads must agree. The value is signed: system processes can
+        // run with -1000.
+        let a = me
+            .oom_score_adj()
+            .expect("Failed to read process oom_score_adj");
+        let b = me
+            .oom_score_adj()
+            .expect("Failed to read process oom_score_adj");
+        assert_eq!(a, b, "oom_score_adj should be stable between reads");
+    }
+
+    #[test]
+    fn test_live_process_oom_score_adj_matches_file() {
+        let me = Process::current().expect("Failed to get current process");
+
+        // Compare against the raw file, a single decimal number (which
+        // may be negative) plus newline.
+        let raw = std::fs::read_to_string("/proc/self/oom_score_adj")
+            .expect("oom_score_adj file should exist on this kernel");
+        let expected: i16 = raw.trim().parse().expect("invalid oom_score_adj in file");
+        let parsed = me
+            .oom_score_adj()
+            .expect("Failed to read process oom_score_adj");
+        assert_eq!(parsed, expected, "parse should match raw file contents");
+    }
+
+    #[test]
+    fn test_live_process_oom_score_adj_range() {
+        let me = Process::current().expect("Failed to get current process");
+
+        // The kernel clamps the value to [-1000, 1000]. A value outside
+        // that bounds a parse or sign mistake.
+        let adj = me
+            .oom_score_adj()
+            .expect("Failed to read process oom_score_adj");
+        assert!(
+            (-1000..=1000).contains(&adj),
+            "oom_score_adj {adj} outside the documented range"
+        );
+    }
+
+    #[test]
     fn test_live_devices() {
         let devices = devices().expect("Failed to read /proc/devices");
 
