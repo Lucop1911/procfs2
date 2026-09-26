@@ -21,17 +21,6 @@ pub trait ParseFromBytes: Sized {
     fn parse_from_bytes(bytes: &[u8]) -> Result<Self>;
 }
 
-/// Splits a byte slice at the first occurrence of `byte`.
-///
-/// Returns `(before, after)` where `after` starts past the delimiter.
-/// If the byte is not found, returns `(slice, &[])`.
-pub fn split_at_byte(slice: &[u8], byte: u8) -> (&[u8], &[u8]) {
-    match memchr(byte, slice) {
-        Some(idx) => (&slice[..idx], &slice[idx + 1..]),
-        None => (slice, &[]),
-    }
-}
-
 /// Finds the first occurrence of `byte` in `slice`.
 ///
 /// Equivalent to `slice.iter().position(|&b| b == byte)` but named
@@ -48,6 +37,17 @@ pub fn memchr(byte: u8, slice: &[u8]) -> Option<usize> {
 #[inline]
 pub(crate) fn count_byte(byte: u8, slice: &[u8]) -> usize {
     memchr::memchr_iter(byte, slice).count()
+}
+
+/// Splits a byte slice at the first occurrence of `byte`.
+///
+/// Returns `(before, after)` where `after` starts past the delimiter.
+/// If the byte is not found, returns `(slice, &[])`.
+pub fn split_at_byte(slice: &[u8], byte: u8) -> (&[u8], &[u8]) {
+    match memchr(byte, slice) {
+        Some(idx) => (&slice[..idx], &slice[idx + 1..]),
+        None => (slice, &[]),
+    }
 }
 
 /// Trims trailing whitespace: space, tab, newline, carriage return.
@@ -91,6 +91,92 @@ pub fn parse_key_value_line(line: &[u8]) -> Option<(&[u8], &[u8])> {
     let key = trim_end(&line[..idx]);
     let value = trim_end(&line[idx + 1..]);
     Some((key, value))
+}
+
+/// Splits a byte slice on runs of spaces and tabs, returning the
+/// fields in a heap-allocated `Vec`.
+///
+/// Unlike `split(|&b| b == b' ' || b == b'\t')`, this does not
+/// produce empty segments for consecutive whitespace.
+///
+/// Prefer the allocation-free [`SplitFields`] when the number of
+/// fields is bounded: most `/proc` writers emit a fixed column count,
+/// and `SplitFields` keeps the fields in a stack buffer rather than
+/// paying a heap allocation for every line. Reserve `split_spaces`
+/// for rows whose field count genuinely varies with the system.
+pub fn split_spaces(slice: &[u8]) -> Vec<&[u8]> {
+    slice
+        .split(|&b| b == b' ' || b == b'\t')
+        .filter(|f| !f.is_empty())
+        .collect()
+}
+
+/// An allocation-free split of a byte slice into whitespace-separated fields.
+///
+/// Fields are stored in a fixed-size stack buffer rather than a `Vec`, so
+/// splitting inside per-line loops does not pay a heap allocation for every
+/// line. If a line contains more than `N` fields, the excess fields are
+/// ignored; no `/proc` line exceeds `N` in practice.
+///
+/// Splitting semantics match [`split_spaces`]: runs of spaces and tabs are
+/// collapsed and empty segments are skipped.
+pub struct SplitFields<'a, const N: usize> {
+    fields: [&'a [u8]; N],
+    len: usize,
+}
+
+impl<'a, const N: usize> SplitFields<'a, N> {
+    /// Splits `slice` on runs of spaces and tabs.
+    ///
+    /// Uses `memchr2` to skip straight to the next delimiter instead of
+    /// scanning byte-by-byte, which keeps the split cheap on rows from
+    /// large files like `/proc/net/unix`.
+    #[inline]
+    pub fn new(slice: &'a [u8]) -> Self {
+        const EMPTY: &[u8] = &[];
+        let mut fields = [EMPTY; N];
+        let mut len = 0;
+        let mut rest = slice;
+        while len < N {
+            match memchr2(b' ', b'\t', rest) {
+                Some(0) => rest = &rest[1..],
+                Some(idx) => {
+                    fields[len] = &rest[..idx];
+                    len += 1;
+                    rest = &rest[idx + 1..];
+                }
+                None => {
+                    if !rest.is_empty() {
+                        fields[len] = rest;
+                        len += 1;
+                    }
+                    break;
+                }
+            }
+        }
+        SplitFields { fields, len }
+    }
+}
+
+impl<'a, const N: usize> std::ops::Deref for SplitFields<'a, N> {
+    type Target = [&'a [u8]];
+
+    fn deref(&self) -> &Self::Target {
+        &self.fields[..self.len]
+    }
+}
+
+/// Returns the first whitespace-delimited token of `slice`.
+///
+/// Used to strip unit suffixes (e.g. the ` kB` in `9764412 kB`)
+/// from key-value fields in `/proc/meminfo` and `/proc/PID/status`
+/// before parsing the numeric part.
+#[inline]
+pub fn first_token(slice: &[u8]) -> &[u8] {
+    match memchr2(b' ', b'\t', slice) {
+        Some(idx) => &slice[..idx],
+        None => slice,
+    }
 }
 
 /// Parses a hexadecimal integer from a byte slice.
@@ -176,6 +262,83 @@ pub fn parse_dec_u32(s: &[u8]) -> Result<u32> {
             path: std::path::PathBuf::from("<dec>"),
             line: 0,
             msg: "invalid decimal",
+        })
+}
+
+/// Parses a decimal `i64` from a byte slice.
+///
+/// Used for fields like `/proc/PID/stat`'s `cutime` and `cstime`
+/// which can be negative on some kernels.
+pub fn parse_dec_i64(s: &[u8]) -> Result<i64> {
+    let s = trim_end(s);
+    if s.is_empty() {
+        return Err(Error::Parse {
+            path: std::path::PathBuf::from("<dec>"),
+            line: 0,
+            msg: "empty decimal value",
+        });
+    }
+    std::str::from_utf8(s)
+        .map_err(|_| Error::Parse {
+            path: std::path::PathBuf::from("<dec>"),
+            line: 0,
+            msg: "invalid utf8 in decimal",
+        })?
+        .parse::<i64>()
+        .map_err(|_| Error::Parse {
+            path: std::path::PathBuf::from("<dec>"),
+            line: 0,
+            msg: "invalid decimal",
+        })
+}
+
+/// Parses a decimal `f32` from a byte slice.
+pub fn parse_dec_f32(s: &[u8]) -> Result<f32> {
+    let s = trim_end(s);
+    if s.is_empty() {
+        return Err(Error::Parse {
+            path: std::path::PathBuf::from("<float>"),
+            line: 0,
+            msg: "empty float value",
+        });
+    }
+    std::str::from_utf8(s)
+        .map_err(|_| Error::Parse {
+            path: std::path::PathBuf::from("<float>"),
+            line: 0,
+            msg: "invalid utf8 in float",
+        })?
+        .parse::<f32>()
+        .map_err(|_| Error::Parse {
+            path: std::path::PathBuf::from("<float>"),
+            line: 0,
+            msg: "invalid float",
+        })
+}
+
+/// Parses a decimal `f64` from a byte slice.
+///
+/// Mostly used where sub-second precision matters.
+pub fn parse_dec_f64(s: &[u8]) -> Result<f64> {
+    let s = trim_end(s);
+    if s.is_empty() {
+        return Err(Error::Parse {
+            path: std::path::PathBuf::from("<float>"),
+            line: 0,
+            msg: "empty float value",
+        });
+    }
+    std::str::from_utf8(s)
+        .map_err(|_| Error::Parse {
+            path: std::path::PathBuf::from("<float>"),
+            line: 0,
+            msg: "invalid utf8 in float",
+        })?
+        .parse::<f64>()
+        .map_err(|_| Error::Parse {
+            path: std::path::PathBuf::from("<float>"),
+            line: 0,
+            msg: "invalid float",
         })
 }
 
@@ -309,6 +472,21 @@ pub(crate) fn parse_dec_i64_fast(s: &[u8]) -> Result<i64> {
     })
 }
 
+/// Tests a byte against the ASCII hex alphabet and returns its value.
+///
+/// Branchless: the `(b | 0x20)` lowercases the letter so one comparison
+/// covers both cases, and `& 0x0f` extracts the low nibble for `0-9`.
+#[inline]
+fn hex_nibble(byte: u8) -> u8 {
+    (byte & 0x0f) + 9 * ((byte | 0x20) > b'9') as u8
+}
+
+/// Combines two hex nibbles into a byte.
+#[inline]
+fn hex_byte(high: u8, low: u8) -> u8 {
+    (hex_nibble(high) << 4) | hex_nibble(low)
+}
+
 /// Decodes a little-endian hex IPv4 address into bytes.
 ///
 /// The kernel writes the address byte-for-byte reversed (`0100000A` is
@@ -344,182 +522,4 @@ pub(crate) fn decode_ipv6_fast(s: &[u8]) -> [u8; 16] {
         i += 1;
     }
     out
-}
-
-/// Combines two hex nibbles into a byte.
-#[inline]
-fn hex_byte(high: u8, low: u8) -> u8 {
-    (hex_nibble(high) << 4) | hex_nibble(low)
-}
-
-/// Tests a byte against the ASCII hex alphabet and returns its value.
-///
-/// Branchless: the `(b | 0x20)` lowercases the letter so one comparison
-/// covers both cases, and `& 0x0f` extracts the low nibble for `0-9`.
-#[inline]
-fn hex_nibble(byte: u8) -> u8 {
-    (byte & 0x0f) + 9 * ((byte | 0x20) > b'9') as u8
-}
-
-/// Parses a decimal `i64` from a byte slice.
-///
-/// Used for fields like `/proc/PID/stat`'s `cutime` and `cstime`
-/// which can be negative on some kernels.
-pub fn parse_dec_i64(s: &[u8]) -> Result<i64> {
-    let s = trim_end(s);
-    if s.is_empty() {
-        return Err(Error::Parse {
-            path: std::path::PathBuf::from("<dec>"),
-            line: 0,
-            msg: "empty decimal value",
-        });
-    }
-    std::str::from_utf8(s)
-        .map_err(|_| Error::Parse {
-            path: std::path::PathBuf::from("<dec>"),
-            line: 0,
-            msg: "invalid utf8 in decimal",
-        })?
-        .parse::<i64>()
-        .map_err(|_| Error::Parse {
-            path: std::path::PathBuf::from("<dec>"),
-            line: 0,
-            msg: "invalid decimal",
-        })
-}
-
-/// Parses a decimal `f32` from a byte slice.
-pub fn parse_dec_f32(s: &[u8]) -> Result<f32> {
-    let s = trim_end(s);
-    if s.is_empty() {
-        return Err(Error::Parse {
-            path: std::path::PathBuf::from("<float>"),
-            line: 0,
-            msg: "empty float value",
-        });
-    }
-    std::str::from_utf8(s)
-        .map_err(|_| Error::Parse {
-            path: std::path::PathBuf::from("<float>"),
-            line: 0,
-            msg: "invalid utf8 in float",
-        })?
-        .parse::<f32>()
-        .map_err(|_| Error::Parse {
-            path: std::path::PathBuf::from("<float>"),
-            line: 0,
-            msg: "invalid float",
-        })
-}
-
-/// Parses a decimal `f64` from a byte slice.
-///
-/// Mostly used where sub-second precision matters.
-pub fn parse_dec_f64(s: &[u8]) -> Result<f64> {
-    let s = trim_end(s);
-    if s.is_empty() {
-        return Err(Error::Parse {
-            path: std::path::PathBuf::from("<float>"),
-            line: 0,
-            msg: "empty float value",
-        });
-    }
-    std::str::from_utf8(s)
-        .map_err(|_| Error::Parse {
-            path: std::path::PathBuf::from("<float>"),
-            line: 0,
-            msg: "invalid utf8 in float",
-        })?
-        .parse::<f64>()
-        .map_err(|_| Error::Parse {
-            path: std::path::PathBuf::from("<float>"),
-            line: 0,
-            msg: "invalid float",
-        })
-}
-
-/// Splits a byte slice on runs of spaces and tabs, returning the
-/// fields in a heap-allocated `Vec`.
-///
-/// Unlike `split(|&b| b == b' ' || b == b'\t')`, this does not
-/// produce empty segments for consecutive whitespace.
-///
-/// Prefer the allocation-free [`SplitFields`] when the number of
-/// fields is bounded: most `/proc` writers emit a fixed column count,
-/// and `SplitFields` keeps the fields in a stack buffer rather than
-/// paying a heap allocation for every line. Reserve `split_spaces`
-/// for rows whose field count genuinely varies with the system
-pub fn split_spaces(slice: &[u8]) -> Vec<&[u8]> {
-    slice
-        .split(|&b| b == b' ' || b == b'\t')
-        .filter(|f| !f.is_empty())
-        .collect()
-}
-
-/// An allocation-free split of a byte slice into whitespace-separated fields.
-///
-/// Fields are stored in a fixed-size stack buffer rather than a `Vec`, so
-/// splitting inside per-line loops does not pay a heap allocation for every
-/// line. If a line contains more than `N` fields, the excess fields are
-/// ignored; no `/proc` line exceeds `N` in practice.
-///
-/// Splitting semantics match [`split_spaces`]: runs of spaces and tabs are
-/// collapsed and empty segments are skipped.
-pub struct SplitFields<'a, const N: usize> {
-    fields: [&'a [u8]; N],
-    len: usize,
-}
-
-impl<'a, const N: usize> SplitFields<'a, N> {
-    /// Splits `slice` on runs of spaces and tabs.
-    ///
-    /// Uses `memchr2` to skip straight to the next delimiter instead of
-    /// scanning byte-by-byte, which keeps the split cheap on rows from
-    /// large files like `/proc/net/unix`.
-    #[inline]
-    pub fn new(slice: &'a [u8]) -> Self {
-        const EMPTY: &[u8] = &[];
-        let mut fields = [EMPTY; N];
-        let mut len = 0;
-        let mut rest = slice;
-        while len < N {
-            match memchr2(b' ', b'\t', rest) {
-                Some(0) => rest = &rest[1..],
-                Some(idx) => {
-                    fields[len] = &rest[..idx];
-                    len += 1;
-                    rest = &rest[idx + 1..];
-                }
-                None => {
-                    if !rest.is_empty() {
-                        fields[len] = rest;
-                        len += 1;
-                    }
-                    break;
-                }
-            }
-        }
-        SplitFields { fields, len }
-    }
-}
-
-impl<'a, const N: usize> std::ops::Deref for SplitFields<'a, N> {
-    type Target = [&'a [u8]];
-
-    fn deref(&self) -> &Self::Target {
-        &self.fields[..self.len]
-    }
-}
-
-/// Returns the first whitespace-delimited token of `slice`.
-///
-/// Used to strip unit suffixes (e.g. the ` kB` in `9764412 kB`)
-/// from key-value fields in `/proc/meminfo` and `/proc/PID/status`
-/// before parsing the numeric part.
-#[inline]
-pub fn first_token(slice: &[u8]) -> &[u8] {
-    match memchr2(b' ', b'\t', slice) {
-        Some(idx) => &slice[..idx],
-        None => slice,
-    }
 }
