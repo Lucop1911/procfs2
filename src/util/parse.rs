@@ -383,11 +383,3 @@ pub fn first_token(slice: &[u8]) -> &[u8] {
         None => slice,
     }
 }
-
-/// Splits a byte slice on newlines, filtering out empty trailing lines.
-pub fn split_lines(slice: &[u8]) -> Vec<&[u8]> {
-    slice
-        .split(|&b| b == b'\n')
-        .filter(|line| !line.is_empty())
-        .collect()
-}
