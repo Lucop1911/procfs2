@@ -169,10 +169,7 @@ impl SmapsRollup {
             };
 
             // Values carry a ` kB` suffix. Take the first token.
-            let val = parse::trim_start(value)
-                .split(|&b| b == b' ' || b == b'\t')
-                .next()
-                .and_then(|t| parse::parse_dec_u64(t).ok())
+            let val = parse::parse_dec_u64_fast(parse::first_token(parse::trim_start(value)))
                 .unwrap_or(0);
 
             match key {
@@ -196,7 +193,7 @@ impl SmapsRollup {
 impl MemoryMap {
     /// Parses all lines of a `/proc/PID/maps` file.
     pub fn parse_all(bytes: &[u8]) -> Result<Vec<Self>> {
-        let mut maps = Vec::new();
+        let mut maps = Vec::with_capacity(parse::count_byte(b'\n', bytes));
 
         for line in bytes.split(|&b| b == b'\n').filter(|l| !l.is_empty()) {
             maps.push(Self::parse_line(line)?);
@@ -217,9 +214,9 @@ impl MemoryMap {
 
         let address = parse_address_range(fields[0])?;
         let perms = parse_permissions(fields[1])?;
-        let offset = parse::parse_hex_u64(fields[2])?;
+        let offset = parse::parse_hex_u64_fast(fields[2])?;
         let device = parse_device(fields[3])?;
-        let inode = parse::parse_dec_u64(fields[4])?;
+        let inode = parse::parse_dec_u64_fast(fields[4])?;
         let pathname = if fields.len() > 5 {
             parse_pathname(&fields[5..])
         } else {
@@ -244,7 +241,7 @@ impl MemoryMapDetail {
     /// `/proc/PID/maps`) followed by indented key-value lines.
     /// A new header line terminates the previous region.
     pub fn parse_all(bytes: &[u8]) -> Result<Vec<Self>> {
-        let mut details = Vec::new();
+        let mut details = Vec::with_capacity(parse::count_byte(b'\n', bytes));
         let mut current: Option<MemoryMapDetail> = None;
 
         for line in bytes.split(|&b| b == b'\n').filter(|l| !l.is_empty()) {
@@ -295,11 +292,8 @@ impl MemoryMapDetail {
             None => return,
         };
 
-        let val = parse::trim_start(value)
-            .split(|&b| b == b' ' || b == b'\t')
-            .next()
-            .and_then(|t| parse::parse_dec_u64(t).ok())
-            .unwrap_or(0);
+        let val =
+            parse::parse_dec_u64_fast(parse::first_token(parse::trim_start(value))).unwrap_or(0);
 
         match key {
             b"Size" => self.size_kb = val,
@@ -325,8 +319,8 @@ fn parse_address_range(s: &[u8]) -> Result<Range<u64>> {
         msg: "missing dash in address range",
     })?;
 
-    let start = parse::parse_hex_u64(&s[..dash])?;
-    let end = parse::parse_hex_u64(&s[dash + 1..])?;
+    let start = parse::parse_hex_u64_fast(&s[..dash])?;
+    let end = parse::parse_hex_u64_fast(&s[dash + 1..])?;
 
     Ok(start..end)
 }
@@ -373,8 +367,8 @@ fn parse_device(s: &[u8]) -> Result<(u32, u32)> {
         msg: "missing colon in device",
     })?;
 
-    let major = parse::parse_hex_u64(&s[..colon])? as u32;
-    let minor = parse::parse_hex_u64(&s[colon + 1..])? as u32;
+    let major = parse::parse_hex_u64_fast(&s[..colon])? as u32;
+    let minor = parse::parse_hex_u64_fast(&s[colon + 1..])? as u32;
 
     Ok((major, minor))
 }

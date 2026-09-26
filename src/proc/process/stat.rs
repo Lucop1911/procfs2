@@ -123,45 +123,40 @@ impl ProcessStat {
         }
 
         Ok(ProcessStat {
-            pid: std::str::from_utf8(&bytes[..space_after_pid])
-                .map_err(|_| Error::Parse {
+            pid: parse::parse_dec_u32_fast(&bytes[..space_after_pid]).map_err(|_| {
+                Error::Parse {
                     path: std::path::PathBuf::from("<stat>"),
                     line: 1,
                     msg: "invalid pid",
-                })?
-                .parse()
-                .map_err(|_| Error::Parse {
-                    path: std::path::PathBuf::from("<stat>"),
-                    line: 1,
-                    msg: "invalid pid",
-                })?,
+                }
+            })?,
             comm: comm_str.into(),
             state: *fields[0].first().ok_or_else(|| Error::Parse {
                 path: std::path::PathBuf::from("<stat>"),
                 line: 1,
                 msg: "invalid state",
             })? as char,
-            ppid: parse::parse_dec_u32(fields[1])?,
-            pgrp: parse::parse_dec_u32(fields[2])?,
-            session: parse::parse_dec_u32(fields[3])?,
-            tty_nr: parse::parse_dec_i64(fields[4])? as i32,
-            tpgid: parse::parse_dec_i64(fields[5])? as u32,
-            flags: parse::parse_dec_u32(fields[6])?,
-            minflt: parse::parse_dec_u64(fields[7])?,
-            cminflt: parse::parse_dec_u64(fields[8])?,
-            majflt: parse::parse_dec_u64(fields[9])?,
-            cmajflt: parse::parse_dec_u64(fields[10])?,
-            utime: parse::parse_dec_u64(fields[11])?,
-            stime: parse::parse_dec_u64(fields[12])?,
-            cutime: parse::parse_dec_i64(fields[13])?,
-            cstime: parse::parse_dec_i64(fields[14])?,
-            priority: parse::parse_dec_i64(fields[15])?,
-            nice: parse::parse_dec_i64(fields[16])?,
-            num_threads: parse::parse_dec_i64(fields[17])?,
-            itrealvalue: parse::parse_dec_i64(fields[18])?,
-            starttime: parse::parse_dec_u64(fields[19])?,
-            vsize: parse::parse_dec_u64(fields[20])?,
-            rss: parse::parse_dec_i64(fields[21])?,
+            ppid: parse::parse_dec_u32_fast(fields[1])?,
+            pgrp: parse::parse_dec_u32_fast(fields[2])?,
+            session: parse::parse_dec_u32_fast(fields[3])?,
+            tty_nr: parse::parse_dec_i64_fast(fields[4])? as i32,
+            tpgid: parse::parse_dec_i64_fast(fields[5])? as u32,
+            flags: parse::parse_dec_u32_fast(fields[6])?,
+            minflt: parse::parse_dec_u64_fast(fields[7])?,
+            cminflt: parse::parse_dec_u64_fast(fields[8])?,
+            majflt: parse::parse_dec_u64_fast(fields[9])?,
+            cmajflt: parse::parse_dec_u64_fast(fields[10])?,
+            utime: parse::parse_dec_u64_fast(fields[11])?,
+            stime: parse::parse_dec_u64_fast(fields[12])?,
+            cutime: parse::parse_dec_i64_fast(fields[13])?,
+            cstime: parse::parse_dec_i64_fast(fields[14])?,
+            priority: parse::parse_dec_i64_fast(fields[15])?,
+            nice: parse::parse_dec_i64_fast(fields[16])?,
+            num_threads: parse::parse_dec_i64_fast(fields[17])?,
+            itrealvalue: parse::parse_dec_i64_fast(fields[18])?,
+            starttime: parse::parse_dec_u64_fast(fields[19])?,
+            vsize: parse::parse_dec_u64_fast(fields[20])?,
+            rss: parse::parse_dec_i64_fast(fields[21])?,
         })
     }
 }

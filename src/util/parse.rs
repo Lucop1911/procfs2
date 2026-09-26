@@ -260,6 +260,38 @@ pub(crate) fn parse_dec_u32_fast(s: &[u8]) -> Result<u32> {
     parse_dec_u64_fast(s).map(|v| v as u32)
 }
 
+/// Strict decimal `i64` parser over raw bytes.
+///
+/// Like [`parse_dec_u64_fast`] but accepts an optional leading `-`,
+/// mirroring [`parse_dec_i64`]. Overflow wraps silently.
+#[inline]
+pub(crate) fn parse_dec_i64_fast(s: &[u8]) -> Result<i64> {
+    let err = || Error::Parse {
+        path: std::path::PathBuf::from("<dec>"),
+        line: 0,
+        msg: "invalid decimal value",
+    };
+    let (rest, negative) = match s.first() {
+        Some(b'-') => (&s[1..], true),
+        _ => (s, false),
+    };
+    if rest.is_empty() {
+        return Err(err());
+    }
+    let mut value = 0u64;
+    for &byte in rest {
+        if !byte.is_ascii_digit() {
+            return Err(err());
+        }
+        value = value * 10 + (byte - b'0') as u64;
+    }
+    Ok(if negative {
+        (value as i64).wrapping_neg()
+    } else {
+        value as i64
+    })
+}
+
 /// Decodes a little-endian hex IPv4 address into bytes.
 ///
 /// The kernel writes the address byte-for-byte reversed (`0100000A` is
