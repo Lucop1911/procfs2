@@ -17,7 +17,8 @@ pub struct UnixEntry {
     pub protocol: u32,
     /// Socket type: `SOCK_STREAM` (1), `SOCK_DGRAM` (2), etc.
     pub type_: u32,
-    /// Socket state: `0` = unconnected, `1` = connected.
+    /// Socket state: one of the kernel TCP state codes
+    /// (`TCP_ESTABLISHED` = 1, `TCP_LISTEN` = 10, ...).
     pub state: u32,
     /// Inode number in the filesystem namespace.
     pub inode: u64,

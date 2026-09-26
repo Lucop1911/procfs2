@@ -1997,13 +1997,13 @@ mod tests {
     fn test_live_net_unix_state() {
         let entries: Vec<_> = procfs2::proc::net::unix().collect();
 
-        // Unix socket state uses the kernel's SS_* codes, which run
-        // from SS_FREE (0) through SS_DISCONNECTING (4).
+        // Unix socket state reuses the kernel TCP state codes
+        // (include/net/tcp_states.h), which run 0..TCP_NEW_SYN_RECV (12).
         for r in entries {
             let e = r.expect("Unix socket entry should parse");
             assert!(
-                e.state <= 4,
-                "Unix socket state {} should be a valid SS_* code",
+                e.state <= 12,
+                "Unix socket state {} should be a valid TCP state code",
                 e.state
             );
         }
