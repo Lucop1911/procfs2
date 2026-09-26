@@ -498,6 +498,21 @@ impl Process {
 
         CoreDumpFilter::from_bytes(&bytes)
     }
+
+    /// Reads `/proc/PID/oom_score` and returns the OOM score.
+    ///
+    /// The kernel's estimate of how likely this process is to be picked
+    /// as the next OOM victim when memory runs out. Higher is worse:
+    /// the score grows with resident memory and is adjusted by the
+    /// `oom_score_adj` value, which can push it into the low thousands.
+    /// It fits comfortably in a `u16`.
+    pub fn oom_score(&self) -> Result<u16> {
+        let mut buf = [0u8; 32];
+        let path = proc_path(&mut buf, self.pid, "/oom_score");
+        let bytes = parse::read_file(Path::new(path))?;
+
+        parse::parse_dec_u32(&bytes).map(|v| v as u16)
+    }
 }
 
 fn write_u32(mut n: u32, buf: &mut [u8]) -> usize {

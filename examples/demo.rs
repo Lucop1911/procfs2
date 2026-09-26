@@ -199,6 +199,14 @@ fn main() {
     println!("Mask: {:#04x}", coredump_filter.bits());
     println!("Flags: {:?}", coredump_filter);
 
+    println!("\n=== /proc/self/oom_score ===");
+    let oom_score = me.oom_score().unwrap();
+    println!("OOM score: {}", oom_score);
+
+    println!("\n=== /proc/self/oom_score ===");
+    let oom_score = me.oom_score().unwrap();
+    println!("oom score: {}", oom_score);
+
     println!("\n=== /proc/stat (CPU) ===");
     let sys_stat = proc::stat().unwrap();
     println!("Context switches: {}", sys_stat.ctxt);

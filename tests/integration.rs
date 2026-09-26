@@ -620,6 +620,45 @@ mod tests {
     }
 
     #[test]
+    fn test_live_process_oom_score() {
+        let me = Process::current().expect("Failed to get current process");
+
+        // The OOM score is recomputed on each read, and only drifts when
+        // memory usage or oom_score_adj changes, so back-to-back reads
+        // are effectively stable.
+        let a = me.oom_score().expect("Failed to read process oom_score");
+        let b = me.oom_score().expect("Failed to read process oom_score");
+        assert_eq!(a, b, "oom_score should be stable between reads");
+    }
+
+    #[test]
+    fn test_live_process_oom_score_matches_file() {
+        let me = Process::current().expect("Failed to get current process");
+
+        // Compare against the raw file, a single decimal number plus
+        // newline.
+        let raw = std::fs::read_to_string("/proc/self/oom_score")
+            .expect("oom_score file should exist on this kernel");
+        let expected: u16 = raw.trim().parse().expect("invalid oom_score in file");
+        let parsed = me.oom_score().expect("Failed to read process oom_score");
+        assert_eq!(parsed, expected, "parse should match raw file contents");
+    }
+
+    #[test]
+    fn test_live_process_oom_score_range() {
+        let me = Process::current().expect("Failed to get current process");
+
+        // The kernel computes the score as a scaled badness value. For
+        // real processes the result is well under a few thousand, and
+        // roots out parse or cast mistakes immediately if it ever isn't.
+        let score = me.oom_score().expect("Failed to read process oom_score");
+        assert!(
+            score <= 2000,
+            "oom_score {score} outside the documented range"
+        );
+    }
+
+    #[test]
     fn test_live_devices() {
         let devices = devices().expect("Failed to read /proc/devices");
 
