@@ -68,7 +68,7 @@ pub struct Stat {
 fn parse_cpu_times(fields: &[&[u8]]) -> Result<CpuTime> {
     let get = |idx: usize| -> Result<Jiffies> {
         if idx < fields.len() {
-            parse::parse_dec_u64(fields[idx]).map(Jiffies)
+            parse::parse_dec_u64_fast(fields[idx]).map(Jiffies)
         } else {
             Ok(Jiffies(0))
         }
@@ -123,7 +123,7 @@ pub fn stat() -> Result<Stat> {
             cpu_total = Some(parse_cpu_times(&fields[1..])?);
         } else if key.starts_with(b"cpu") {
             let id_str = &key[3..];
-            let id = parse::parse_dec_u32(id_str).map_err(|_| Error::Parse {
+            let id = parse::parse_dec_u32_fast(id_str).map_err(|_| Error::Parse {
                 path: path.to_path_buf(),
                 line: line_num + 1,
                 msg: "invalid cpu id",
@@ -131,35 +131,47 @@ pub fn stat() -> Result<Stat> {
             let times = parse_cpu_times(&fields[1..])?;
             per_cpu.push(PerCpuTime { id, times });
         } else if key == b"ctxt" {
-            ctxt = Some(parse::parse_dec_u64(fields[1]).map_err(|_| Error::Parse {
-                path: path.to_path_buf(),
-                line: line_num + 1,
-                msg: "invalid ctxt",
-            })?);
+            ctxt = Some(
+                parse::parse_dec_u64_fast(fields[1]).map_err(|_| Error::Parse {
+                    path: path.to_path_buf(),
+                    line: line_num + 1,
+                    msg: "invalid ctxt",
+                })?,
+            );
         } else if key == b"btime" {
-            btime = Some(parse::parse_dec_u64(fields[1]).map_err(|_| Error::Parse {
-                path: path.to_path_buf(),
-                line: line_num + 1,
-                msg: "invalid btime",
-            })?);
+            btime = Some(
+                parse::parse_dec_u64_fast(fields[1]).map_err(|_| Error::Parse {
+                    path: path.to_path_buf(),
+                    line: line_num + 1,
+                    msg: "invalid btime",
+                })?,
+            );
         } else if key == b"processes" {
-            processes = Some(parse::parse_dec_u64(fields[1]).map_err(|_| Error::Parse {
-                path: path.to_path_buf(),
-                line: line_num + 1,
-                msg: "invalid processes",
-            })?);
+            processes = Some(
+                parse::parse_dec_u64_fast(fields[1]).map_err(|_| Error::Parse {
+                    path: path.to_path_buf(),
+                    line: line_num + 1,
+                    msg: "invalid processes",
+                })?,
+            );
         } else if key == b"procs_running" {
-            procs_running = Some(parse::parse_dec_u64(fields[1]).map_err(|_| Error::Parse {
-                path: path.to_path_buf(),
-                line: line_num + 1,
-                msg: "invalid procs_running",
-            })?);
+            procs_running =
+                Some(
+                    parse::parse_dec_u64_fast(fields[1]).map_err(|_| Error::Parse {
+                        path: path.to_path_buf(),
+                        line: line_num + 1,
+                        msg: "invalid procs_running",
+                    })?,
+                );
         } else if key == b"procs_blocked" {
-            procs_blocked = Some(parse::parse_dec_u64(fields[1]).map_err(|_| Error::Parse {
-                path: path.to_path_buf(),
-                line: line_num + 1,
-                msg: "invalid procs_blocked",
-            })?);
+            procs_blocked =
+                Some(
+                    parse::parse_dec_u64_fast(fields[1]).map_err(|_| Error::Parse {
+                        path: path.to_path_buf(),
+                        line: line_num + 1,
+                        msg: "invalid procs_blocked",
+                    })?,
+                );
         }
     }
 
