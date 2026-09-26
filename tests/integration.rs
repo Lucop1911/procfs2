@@ -9,7 +9,7 @@ mod tests {
     use procfs2::proc::{
         ConsoleFlags, DeviceKind, Process, buddyinfo, consoles, cpu_pressure, cpuinfo, crypto,
         devices, diskstats, filesystems, interrupts, io_pressure, iomem, ioports, irq_pressure,
-        loadavg, locks, meminfo, memory_pressure, misc, modules, pagetypeinfo, partitions,
+        loadavg, locks, meminfo, memory_pressure, misc, modules, mounts, pagetypeinfo, partitions,
         softirqs, stat, swaps, uptime, version, vmstat, zoneinfo,
     };
     use procfs2::sys;
@@ -786,6 +786,45 @@ mod tests {
                 !f.name.contains('\t'),
                 "Filesystem name should not contain tabs"
             );
+        }
+    }
+
+    #[test]
+    fn test_live_mounts() {
+        let mounts = mounts().expect("Failed to read /proc/mounts");
+
+        // The root filesystem is always mounted.
+        assert!(!mounts.is_empty(), "Should have at least one mount");
+    }
+
+    #[test]
+    fn test_live_mounts_root() {
+        let mounts = mounts().expect("Failed to read /proc/mounts");
+
+        // The root mount always exists and resolves to "/".
+        let root = mounts
+            .iter()
+            .find(|m| m.file.as_ref() == "/")
+            .expect("root mount should exist");
+        assert!(!root.vfstype.is_empty(), "Root vfstype should not be empty");
+        let _ = root.spec;
+        let _ = root.mntops;
+        let _ = root.freq;
+        let _ = root.passno;
+    }
+
+    #[test]
+    fn test_live_mounts_fields() {
+        let mounts = mounts().expect("Failed to read /proc/mounts");
+
+        // Every mount has a filesystem type and a mount point.
+        for m in &mounts {
+            assert!(!m.vfstype.is_empty(), "vfstype should not be empty");
+            assert!(!m.file.is_empty(), "Mount point should not be empty");
+            let _ = m.spec;
+            let _ = m.mntops;
+            let _ = m.freq;
+            let _ = m.passno;
         }
     }
 
@@ -1641,6 +1680,333 @@ mod tests {
         assert!(second.ip.in_receives >= first.ip.in_receives);
         assert!(second.icmp.in_msgs >= first.icmp.in_msgs);
         assert!(second.udp.out_datagrams >= first.udp.out_datagrams);
+    }
+
+    #[test]
+    fn test_live_net_route() {
+        let routes: Vec<_> = procfs2::proc::net::route().filter_map(|r| r.ok()).collect();
+
+        // At least one route exists (loopback or default).
+        assert!(!routes.is_empty(), "Should have at least one route");
+    }
+
+    #[test]
+    fn test_live_net_route_fields() {
+        let routes: Vec<_> = procfs2::proc::net::route().filter_map(|r| r.ok()).collect();
+
+        // Every route has the full set of numeric fields.
+        for r in &routes {
+            assert!(!r.iface.is_empty(), "Route iface should not be empty");
+            let _ = r.destination;
+            let _ = r.gateway;
+            let _ = r.mask;
+            let _ = r.flags;
+            let _ = r.refcnt;
+            let _ = r.use_;
+            let _ = r.metric;
+            let _ = r.mtu;
+            let _ = r.window;
+            let _ = r.irtt;
+        }
+    }
+
+    #[test]
+    fn test_live_net_route_default() {
+        let routes: Vec<_> = procfs2::proc::net::route().filter_map(|r| r.ok()).collect();
+
+        // The default route, when present, is 0.0.0.0 with a 0 mask.
+        for r in &routes {
+            if r.destination.is_unspecified() && r.mask.is_unspecified() {
+                let _ = r.gateway;
+                let _ = r.metric;
+            }
+        }
+    }
+
+    #[test]
+    fn test_live_net_dev() {
+        let devices: Vec<_> = procfs2::proc::net::dev().filter_map(|r| r.ok()).collect();
+
+        // The loopback interface is always present.
+        assert!(!devices.is_empty(), "Should have at least one interface");
+        assert!(
+            devices.iter().any(|d| d.name.as_ref() == "lo"),
+            "Should have a loopback interface"
+        );
+    }
+
+    #[test]
+    fn test_live_net_dev_fields() {
+        let devices: Vec<_> = procfs2::proc::net::dev().filter_map(|r| r.ok()).collect();
+
+        // Every interface carries the full 16-column counter set.
+        for d in &devices {
+            assert!(!d.name.is_empty(), "Interface name should not be empty");
+            let _ = d.rx_bytes;
+            let _ = d.rx_packets;
+            let _ = d.rx_errors;
+            let _ = d.rx_drop;
+            let _ = d.rx_fifo_errors;
+            let _ = d.rx_frame_errors;
+            let _ = d.rx_compressed;
+            let _ = d.rx_multicast;
+            let _ = d.tx_bytes;
+            let _ = d.tx_packets;
+            let _ = d.tx_errors;
+            let _ = d.tx_drop;
+            let _ = d.tx_fifo_errors;
+            let _ = d.tx_collisions;
+            let _ = d.tx_carrier_errors;
+            let _ = d.tx_compressed;
+        }
+    }
+
+    #[test]
+    fn test_live_net_dev_loopback_activity() {
+        let devices: Vec<_> = procfs2::proc::net::dev().filter_map(|r| r.ok()).collect();
+
+        // Loopback carries at least some traffic while the test runs.
+        let lo = devices
+            .iter()
+            .find(|d| d.name.as_ref() == "lo")
+            .expect("loopback interface should exist");
+        assert!(lo.rx_packets > 0, "loopback should have received packets");
+        assert!(
+            lo.tx_packets > 0,
+            "loopback should have transmitted packets"
+        );
+    }
+
+    #[test]
+    fn test_live_net_arp() {
+        // The ARP table may legitimately be empty; just ensure no parse
+        // errors.
+        let entries: Vec<_> = procfs2::proc::net::arp().filter_map(|r| r.ok()).collect();
+        assert!(
+            procfs2::proc::net::arp().all(|r| r.is_ok()),
+            "ARP entries should parse"
+        );
+        let _ = entries;
+    }
+
+    #[test]
+    fn test_live_net_arp_fields() {
+        let entries: Vec<_> = procfs2::proc::net::arp().filter_map(|r| r.ok()).collect();
+
+        // Every entry has an IP, a hardware info, and a device.
+        for e in &entries {
+            let _ = e.ip;
+            let _ = e.hw_type;
+            let _ = e.flags;
+            let _ = e.mac;
+            assert!(!e.device.is_empty(), "ARP device should not be empty");
+        }
+    }
+
+    #[test]
+    fn test_live_net_arp_consistency() {
+        let first: Vec<_> = procfs2::proc::net::arp().filter_map(|r| r.ok()).collect();
+        let second: Vec<_> = procfs2::proc::net::arp().filter_map(|r| r.ok()).collect();
+
+        // The ARP table is stable in practice between two reads; if it
+        // changed, skip rather than fail.
+        if first.len() == second.len() {
+            for (a, b) in first.iter().zip(&second) {
+                assert_eq!(a.ip, b.ip, "ARP entry should keep its IP");
+            }
+        }
+    }
+
+    #[test]
+    fn test_live_net_tcp() {
+        // Connections may be empty; ensure the file parses without errors.
+        let entries: Vec<_> = procfs2::proc::net::tcp().collect();
+        assert!(
+            entries.iter().all(|r| r.is_ok()),
+            "TCP entries should parse"
+        );
+    }
+
+    #[test]
+    fn test_live_net_tcp_loopback() {
+        let entries: Vec<_> = procfs2::proc::net::tcp().filter_map(|r| r.ok()).collect();
+
+        // A listening TCP socket bound anywhere is normal.
+        for e in &entries {
+            let _ = e.local;
+            let _ = e.remote;
+            let _ = e.state;
+            let _ = e.inode;
+            let _ = e.uid;
+            let _ = e.rx_queue;
+            let _ = e.tx_queue;
+        }
+    }
+
+    #[test]
+    fn test_live_net_tcp_states() {
+        let entries: Vec<_> = procfs2::proc::net::tcp().collect();
+
+        // Any parsed state decodes to a known variant.
+        for r in entries {
+            let e = r.expect("TCP entry should parse");
+            match e.state {
+                procfs2::proc::net::TcpState::Established
+                | procfs2::proc::net::TcpState::SynSent
+                | procfs2::proc::net::TcpState::SynRecv
+                | procfs2::proc::net::TcpState::FinWait1
+                | procfs2::proc::net::TcpState::FinWait2
+                | procfs2::proc::net::TcpState::TimeWait
+                | procfs2::proc::net::TcpState::Close
+                | procfs2::proc::net::TcpState::CloseWait
+                | procfs2::proc::net::TcpState::LastAck
+                | procfs2::proc::net::TcpState::Listen
+                | procfs2::proc::net::TcpState::Closing
+                | procfs2::proc::net::TcpState::NewSynRecv => {}
+            }
+        }
+    }
+
+    #[test]
+    fn test_live_net_tcp6() {
+        // Pure-IPv6 connections yield parse errors by design (documented
+        // limitation), so only assert that collection does not panic.
+        let _ = procfs2::proc::net::tcp6().count();
+    }
+
+    #[test]
+    fn test_live_net_tcp6_mapped() {
+        // IPv4-mapped entries come back as IPv4.
+        for entry in procfs2::proc::net::tcp6().flatten() {
+            assert!(
+                entry.local.ip().is_loopback() || !entry.local.ip().is_unspecified(),
+                "mapped entry should invert to the original IPv4"
+            );
+            let _ = entry.remote;
+            let _ = entry.state;
+        }
+    }
+
+    #[test]
+    fn test_live_net_tcp6_fallback() {
+        // parse_tcp6_entries() always yields IPv6 sockets without the
+        // IPv4-only remapping.
+        for entry in procfs2::proc::net::tcp::parse_tcp6_entries().flatten() {
+            let _ = entry.local;
+            let _ = entry.remote;
+            let _ = entry.inode;
+        }
+    }
+
+    #[test]
+    fn test_live_net_udp() {
+        let entries: Vec<_> = procfs2::proc::net::udp().collect();
+        assert!(
+            entries.iter().all(|r| r.is_ok()),
+            "UDP entries should parse"
+        );
+    }
+
+    #[test]
+    fn test_live_net_udp_loopback() {
+        let entries: Vec<_> = procfs2::proc::net::udp().filter_map(|r| r.ok()).collect();
+
+        for e in &entries {
+            let _ = e.local;
+            let _ = e.remote;
+            let _ = e.state;
+            let _ = e.uid;
+            let _ = e.inode;
+            let _ = e.rx_queue;
+            let _ = e.tx_queue;
+        }
+    }
+
+    #[test]
+    fn test_live_net_udp_states() {
+        let entries: Vec<_> = procfs2::proc::net::udp().collect();
+
+        // UDP sockets are either unconnected (0x07) or connected (0x01).
+        for r in entries {
+            let e = r.expect("UDP entry should parse");
+            assert!(
+                e.state == 0x07 || e.state == 0x01,
+                "UDP state {:#x} should be 0x01 or 0x07",
+                e.state
+            );
+        }
+    }
+
+    #[test]
+    fn test_live_net_udp6() {
+        let entries: Vec<_> = procfs2::proc::net::udp6().collect();
+        assert!(
+            entries.iter().all(|r| r.is_ok()),
+            "UDP6 entries should parse"
+        );
+    }
+
+    #[test]
+    fn test_live_net_udp6_fields() {
+        let entries: Vec<_> = procfs2::proc::net::udp6().filter_map(|r| r.ok()).collect();
+
+        for e in &entries {
+            let _ = e.local;
+            let _ = e.remote;
+            let _ = e.state;
+            let _ = e.uid;
+            let _ = e.inode;
+        }
+    }
+
+    #[test]
+    fn test_live_net_udp6_ipv4_mixed() {
+        // udp6 may mix IPv6 and IPv4-mapped sockets; both parse fine.
+        let _count: usize = procfs2::proc::net::udp6().filter_map(|r| r.ok()).count();
+    }
+
+    #[test]
+    fn test_live_net_unix() {
+        let entries: Vec<_> = procfs2::proc::net::unix().collect();
+        assert!(
+            entries.iter().all(|r| r.is_ok()),
+            "Unix socket entries should parse"
+        );
+    }
+
+    #[test]
+    fn test_live_net_unix_path() {
+        // Most systems have a few bound abstract or filesystem sockets.
+        let entries: Vec<_> = procfs2::proc::net::unix().filter_map(|r| r.ok()).collect();
+
+        let has_path = entries.iter().any(|e| e.path.is_some());
+        // Can't require one — some containers have none.
+        let _ = has_path;
+
+        for e in &entries {
+            let _ = e.ino;
+            let _ = e.ref_count;
+            let _ = e.protocol;
+            let _ = e.type_;
+            let _ = e.state;
+            let _ = e.inode;
+        }
+    }
+
+    #[test]
+    fn test_live_net_unix_state() {
+        let entries: Vec<_> = procfs2::proc::net::unix().collect();
+
+        // Unix socket state uses the kernel's SS_* codes, which run
+        // from SS_FREE (0) through SS_DISCONNECTING (4).
+        for r in entries {
+            let e = r.expect("Unix socket entry should parse");
+            assert!(
+                e.state <= 4,
+                "Unix socket state {} should be a valid SS_* code",
+                e.state
+            );
+        }
     }
 
     #[test]

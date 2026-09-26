@@ -156,7 +156,27 @@ pub fn parse_dec_u64(s: &[u8]) -> Result<u64> {
 
 /// Parses a decimal `u32` from a byte slice.
 pub fn parse_dec_u32(s: &[u8]) -> Result<u32> {
-    parse_dec_u64(s).map(|v| v as u32)
+    let s = trim_end(s);
+    if s.is_empty() {
+        return Err(Error::Parse {
+            path: std::path::PathBuf::from("<dec>"),
+            line: 0,
+            msg: "empty decimal value",
+        });
+    }
+
+    std::str::from_utf8(s)
+        .map_err(|_| Error::Parse {
+            path: std::path::PathBuf::from("<dec>"),
+            line: 0,
+            msg: "invalid utf8 in decimal",
+        })?
+        .parse::<u32>()
+        .map_err(|_| Error::Parse {
+            path: std::path::PathBuf::from("<dec>"),
+            line: 0,
+            msg: "invalid decimal",
+        })
 }
 
 /// Fast hexadecimal integer parser over raw bytes.
