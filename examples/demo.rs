@@ -187,17 +187,28 @@ fn main() {
     }
 
     println!("\n=== /proc/self/loginuid ===");
-    let loginuid = me.loginuid().unwrap();
-    println!("Loginuid: {}", loginuid);
+    match me.loginuid() {
+        Ok(Some(uid)) => println!("Loginuid: {}", uid),
+        Ok(None) => println!("  (skipped: kernel built without auditing)"),
+        Err(e) => println!("  (skipped: {e})"),
+    }
 
     println!("\n=== /proc/self/sessionid ===");
-    let sessionid = me.sessionid().unwrap();
-    println!("Session id: {}", sessionid);
+    match me.sessionid() {
+        Ok(Some(sid)) => println!("Session id: {}", sid),
+        Ok(None) => println!("  (skipped: kernel built without auditing)"),
+        Err(e) => println!("  (skipped: {e})"),
+    }
 
     println!("\n=== /proc/self/coredump_filter ===");
-    let coredump_filter = me.coredump_filter().unwrap();
-    println!("Mask: {:#04x}", coredump_filter.bits());
-    println!("Flags: {:?}", coredump_filter);
+    match me.coredump_filter() {
+        Ok(Some(filter)) => {
+            println!("Mask: {:#04x}", filter.bits());
+            println!("Flags: {:?}", filter);
+        }
+        Ok(None) => println!("  (skipped: kernel built without CONFIG_ELF_CORE)"),
+        Err(e) => println!("  (skipped: {e})"),
+    }
 
     println!("\n=== /proc/self/oom_score ===");
     let oom_score = me.oom_score().unwrap();

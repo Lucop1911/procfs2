@@ -453,15 +453,21 @@ impl Process {
     /// namespace transitions. It is `u32::MAX` when no login uid has
     /// been assigned (e.g. system services started before login).
     ///
-    /// The file only exists if auditing is enabled in the kernel
-    /// (`CONFIG_AUDITSYSCALL`); otherwise this returns an
-    /// [`Error::Io`] not-found error.
-    pub fn loginuid(&self) -> Result<u32> {
+    /// The `/proc/PID/loginuid` file only exists when auditing is enabled
+    /// in the kernel (`CONFIG_AUDITSYSCALL`); kernels built without it
+    /// yield `None` rather than an error.
+    pub fn loginuid(&self) -> Result<Option<u32>> {
         let mut buf = [0u8; 32];
         let path = proc_path(&mut buf, self.pid, "/loginuid");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = match parse::read_file(Path::new(&path)) {
+            Ok(bytes) => bytes,
+            Err(Error::Io { error, .. }) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(None);
+            }
+            Err(e) => return Err(e),
+        };
 
-        parse::parse_dec_u32(&bytes)
+        Ok(Some(parse::parse_dec_u32(&bytes)?))
     }
 
     /// Reads `/proc/PID/sessionid` and returns the audit session id.
@@ -472,15 +478,21 @@ impl Process {
     /// from one login. Kernel threads and processes started before any
     /// login report `u32::MAX`.
     ///
-    /// The file only exists if auditing is enabled in the kernel
-    /// (`CONFIG_AUDITSYSCALL`); otherwise this returns an
-    /// [`Error::Io`] not-found error.
-    pub fn sessionid(&self) -> Result<u32> {
+    /// The `/proc/PID/sessionid` file only exists when auditing is enabled
+    /// in the kernel (`CONFIG_AUDITSYSCALL`); kernels built without it
+    /// yield `None` rather than an error.
+    pub fn sessionid(&self) -> Result<Option<u32>> {
         let mut buf = [0u8; 32];
         let path = proc_path(&mut buf, self.pid, "/sessionid");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = match parse::read_file(Path::new(&path)) {
+            Ok(bytes) => bytes,
+            Err(Error::Io { error, .. }) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(None);
+            }
+            Err(e) => return Err(e),
+        };
 
-        parse::parse_dec_u32(&bytes)
+        Ok(Some(parse::parse_dec_u32(&bytes)?))
     }
 
     /// Reads `/proc/PID/coredump_filter` and returns the core dump filter.
@@ -489,14 +501,22 @@ impl Process {
     /// dumps core. The value is inherited by `fork` and preserved across
     /// `execve`.
     ///
-    /// The file only exists if the kernel was built with `CONFIG_ELF_CORE`.
-    /// Kernel threads have no address space and report an empty filter.
-    pub fn coredump_filter(&self) -> Result<CoreDumpFilter> {
+    /// The `/proc/PID/coredump_filter` file only exists when the kernel is
+    /// built with `CONFIG_ELF_CORE`; kernels built without it yield
+    /// `None` rather than an error. Kernel threads have no address space
+    /// and report an empty filter.
+    pub fn coredump_filter(&self) -> Result<Option<CoreDumpFilter>> {
         let mut buf = [0u8; 32];
         let path = proc_path(&mut buf, self.pid, "/coredump_filter");
-        let bytes = parse::read_file(Path::new(path))?;
+        let bytes = match parse::read_file(Path::new(path)) {
+            Ok(bytes) => bytes,
+            Err(Error::Io { error, .. }) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(None);
+            }
+            Err(e) => return Err(e),
+        };
 
-        CoreDumpFilter::from_bytes(&bytes)
+        Ok(Some(CoreDumpFilter::from_bytes(&bytes)?))
     }
 
     /// Reads `/proc/PID/oom_score` and returns the OOM score.

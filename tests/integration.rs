@@ -6,7 +6,6 @@
 
 #[cfg(test)]
 mod tests {
-    use procfs2::proc::process::CoreDumpFilter;
     use procfs2::proc::{
         ConsoleFlags, DeviceKind, Process, buddyinfo, consoles, cpu_pressure, cpuinfo, crypto,
         devices, diskstats, filesystems, interrupts, io_pressure, iomem, ioports, irq_pressure,
@@ -27,51 +26,6 @@ mod tests {
                 None
             }
             Err(e) => panic!("Failed to read /proc/pagetypeinfo: {e}"),
-        }
-    }
-
-    /// `/proc/PID/loginuid` only exists when the kernel was built with
-    /// auditing enabled (`CONFIG_AUDITSYSCALL`). Returns `None` when
-    /// the file is absent for that reason; panics on other failures.
-    fn loginuid_or_skip(process: &Process) -> Option<u32> {
-        match process.loginuid() {
-            Ok(uid) => Some(uid),
-            Err(procfs2::Error::Io { error: e, .. })
-                if e.kind() == std::io::ErrorKind::NotFound =>
-            {
-                None
-            }
-            Err(e) => panic!("Failed to read process loginuid: {e}"),
-        }
-    }
-
-    /// `/proc/PID/sessionid` has the same `CONFIG_AUDITSYSCALL`
-    /// dependency as loginuid. Returns `None` when absent for that
-    /// reason; panics on other failures.
-    fn sessionid_or_skip(process: &Process) -> Option<u32> {
-        match process.sessionid() {
-            Ok(sid) => Some(sid),
-            Err(procfs2::Error::Io { error: e, .. })
-                if e.kind() == std::io::ErrorKind::NotFound =>
-            {
-                None
-            }
-            Err(e) => panic!("Failed to read process sessionid: {e}"),
-        }
-    }
-
-    /// `/proc/PID/coredump_filter` only exists when the kernel was built
-    /// with core dump support (`CONFIG_ELF_CORE`). Returns `None` when
-    /// absent for that reason; panics on other failures.
-    fn coredump_filter_or_skip(process: &Process) -> Option<CoreDumpFilter> {
-        match process.coredump_filter() {
-            Ok(filter) => Some(filter),
-            Err(procfs2::Error::Io { error: e, .. })
-                if e.kind() == std::io::ErrorKind::NotFound =>
-            {
-                None
-            }
-            Err(e) => panic!("Failed to read process coredump_filter: {e}"),
         }
     }
 
@@ -469,9 +423,15 @@ mod tests {
         let me = Process::current().expect("Failed to get current process");
 
         // The kernel allows the login uid to be set only once per
-        // process, so two reads must agree.
-        let a = loginuid_or_skip(&me).expect("kernels without auditing skip this");
-        let b = loginuid_or_skip(&me).expect("kernels without auditing skip this");
+        // process, so two reads must agree. Kernels without auditing
+        // (`CONFIG_AUDITSYSCALL`) have no loginuid file at all.
+        let Some(a) = me.loginuid().expect("Failed to read process loginuid") else {
+            return;
+        };
+        let b = me
+            .loginuid()
+            .expect("Failed to read process loginuid")
+            .expect("loginuid vanished between reads");
         assert_eq!(a, b, "loginuid should be immutable for a process");
     }
 
@@ -481,17 +441,21 @@ mod tests {
 
         // Compare against the raw file, which the kernel writes as a
         // single decimal number plus newline.
+        let Some(parsed) = me.loginuid().expect("Failed to read process loginuid") else {
+            return;
+        };
         let raw = std::fs::read_to_string("/proc/self/loginuid")
             .expect("loginuid file should exist on this kernel");
         let expected: u32 = raw.trim().parse().expect("invalid loginuid in file");
-        let parsed = loginuid_or_skip(&me).expect("kernels without auditing skip this");
         assert_eq!(parsed, expected, "parse should match raw file contents");
     }
 
     #[test]
     fn test_live_process_loginuid_inherited() {
         let me = Process::current().expect("Failed to get current process");
-        let parent = loginuid_or_skip(&me).expect("kernels without auditing skip this");
+        let Some(parent) = me.loginuid().expect("Failed to read process loginuid") else {
+            return;
+        };
 
         // /proc/PID/loginuid is mode 0644, readable for any process.
         let mut child = std::process::Command::new("/bin/sleep")
@@ -503,6 +467,9 @@ mod tests {
             .loginuid()
             .expect("Failed to read child loginuid");
         child.wait().expect("Failed to wait on child");
+        let Some(child_loginuid) = child_loginuid else {
+            return;
+        };
 
         // The login uid survives fork, so the child inherits ours.
         assert_eq!(
@@ -516,9 +483,15 @@ mod tests {
         let me = Process::current().expect("Failed to get current process");
 
         // The audit session id is fixed for a process, so two reads
-        // must agree.
-        let a = sessionid_or_skip(&me).expect("kernels without auditing skip this");
-        let b = sessionid_or_skip(&me).expect("kernels without auditing skip this");
+        // must agree. Kernels without auditing (`CONFIG_AUDITSYSCALL`)
+        // have no sessionid file at all.
+        let Some(a) = me.sessionid().expect("Failed to read process sessionid") else {
+            return;
+        };
+        let b = me
+            .sessionid()
+            .expect("Failed to read process sessionid")
+            .expect("sessionid vanished between reads");
         assert_eq!(a, b, "sessionid should be immutable for a process");
     }
 
@@ -528,17 +501,21 @@ mod tests {
 
         // Compare against the raw file, which the kernel writes as a
         // single decimal number plus newline.
+        let Some(parsed) = me.sessionid().expect("Failed to read process sessionid") else {
+            return;
+        };
         let raw = std::fs::read_to_string("/proc/self/sessionid")
             .expect("sessionid file should exist on this kernel");
         let expected: u32 = raw.trim().parse().expect("invalid sessionid in file");
-        let parsed = sessionid_or_skip(&me).expect("kernels without auditing skip this");
         assert_eq!(parsed, expected, "parse should match raw file contents");
     }
 
     #[test]
     fn test_live_process_sessionid_inherited() {
         let me = Process::current().expect("Failed to get current process");
-        let parent = sessionid_or_skip(&me).expect("kernels without auditing skip this");
+        let Some(parent) = me.sessionid().expect("Failed to read process sessionid") else {
+            return;
+        };
 
         // /proc/PID/sessionid is mode 0444, readable for any process.
         let mut child = std::process::Command::new("/bin/sleep")
@@ -550,6 +527,9 @@ mod tests {
             .sessionid()
             .expect("Failed to read child sessionid");
         child.wait().expect("Failed to wait on child");
+        let Some(child_sessionid) = child_sessionid else {
+            return;
+        };
 
         // The audit session id survives fork, so the child inherits ours.
         assert_eq!(
@@ -561,13 +541,21 @@ mod tests {
     #[test]
     fn test_live_process_coredump_filter() {
         let me = Process::current().expect("Failed to get current process");
-        let filter =
-            coredump_filter_or_skip(&me).expect("kernels without core dump support skip this");
 
         // The filter lives in the address space, and only changed through
-        // an explicit write, so two reads must agree.
-        let again =
-            coredump_filter_or_skip(&me).expect("kernels without core dump support skip this");
+        // an explicit write, so two reads must agree. Kernels built
+        // without core dump support (`CONFIG_ELF_CORE`) have no
+        // coredump_filter file at all.
+        let Some(filter) = me
+            .coredump_filter()
+            .expect("Failed to read process coredump_filter")
+        else {
+            return;
+        };
+        let again = me
+            .coredump_filter()
+            .expect("Failed to read process coredump_filter")
+            .expect("coredump_filter vanished between reads");
         assert_eq!(
             filter, again,
             "coredump_filter should be stable for a process"
@@ -580,12 +568,16 @@ mod tests {
 
         // Compare against the raw file, which the kernel writes as eight
         // zero-padded hex digits plus newline, e.g. 00000033.
+        let Some(parsed) = me
+            .coredump_filter()
+            .expect("Failed to read process coredump_filter")
+        else {
+            return;
+        };
         let raw = std::fs::read_to_string("/proc/self/coredump_filter")
             .expect("coredump_filter file should exist on this kernel");
         let expected =
             u32::from_str_radix(raw.trim(), 16).expect("invalid coredump_filter in file");
-        let parsed =
-            coredump_filter_or_skip(&me).expect("kernels without core dump support skip this");
         assert_eq!(
             parsed.bits(),
             expected,
@@ -596,8 +588,12 @@ mod tests {
     #[test]
     fn test_live_process_coredump_filter_inherited() {
         let me = Process::current().expect("Failed to get current process");
-        let parent =
-            coredump_filter_or_skip(&me).expect("kernels without core dump support skip this");
+        let Some(parent) = me
+            .coredump_filter()
+            .expect("Failed to read process coredump_filter")
+        else {
+            return;
+        };
 
         // /proc/PID/coredump_filter is mode 0644, readable for any
         // process, and its value is inherited via fork.
@@ -610,6 +606,9 @@ mod tests {
             .coredump_filter()
             .expect("Failed to read child coredump_filter");
         child.wait().expect("Failed to wait on child");
+        let Some(child_filter) = child_filter else {
+            return;
+        };
 
         // The filter is per-address-space, and the child shares the
         // parent's address space at fork.
