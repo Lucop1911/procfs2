@@ -18,9 +18,26 @@ pub struct IrqPressure {
 }
 
 /// Reads `/proc/pressure/irq` and returns [`IrqPressure`].
-pub fn irq_pressure() -> Result<IrqPressure> {
+///
+/// IRQ pressure is optional: on kernels built without psi IRQ support the
+/// `/proc/pressure/irq` entry still exists but reads fail with `EOPNOTSUPP`
+/// (or is absent entirely). This isn't an error condition so much as the
+/// feature being unavailable, so that case yields `None`. Any other I/O or
+/// parse failure still returns `Err`.
+pub fn irq_pressure() -> Result<Option<IrqPressure>> {
     let path = Path::new("/proc/pressure/irq");
-    let bytes = parse::read_file(path)?;
+    let bytes = match parse::read_file(path) {
+        Ok(bytes) => bytes,
+        Err(Error::Io { error, .. })
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::Unsupported
+            ) =>
+        {
+            return Ok(None);
+        }
+        Err(e) => return Err(e),
+    };
 
     let mut full = None;
 
@@ -34,11 +51,11 @@ pub fn irq_pressure() -> Result<IrqPressure> {
             full = Some(entry);
         }
     }
-    Ok(IrqPressure {
+    Ok(Some(IrqPressure {
         full: full.ok_or_else(|| Error::Parse {
             path: path.to_path_buf(),
             line: 0,
             msg: "missing full line",
         })?,
-    })
+    }))
 }
