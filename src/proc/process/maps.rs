@@ -193,7 +193,7 @@ impl SmapsRollup {
 impl MemoryMap {
     /// Parses all lines of a `/proc/PID/maps` file.
     pub fn parse_all(bytes: &[u8]) -> Result<Vec<Self>> {
-        let mut maps = Vec::with_capacity(parse::count_byte(b'\n', &bytes));
+        let mut maps = Vec::with_capacity(parse::count_byte(b'\n', bytes));
 
         for line in bytes.split(|&b| b == b'\n').filter(|l| !l.is_empty()) {
             maps.push(Self::parse_line(line)?);
@@ -241,7 +241,7 @@ impl MemoryMapDetail {
     /// `/proc/PID/maps`) followed by indented key-value lines.
     /// A new header line terminates the previous region.
     pub fn parse_all(bytes: &[u8]) -> Result<Vec<Self>> {
-        let mut details = Vec::with_capacity(parse::count_byte(b'\n', &bytes));
+        let mut details = Vec::with_capacity(parse::count_byte(b'\n', bytes));
         let mut current: Option<MemoryMapDetail> = None;
 
         for line in bytes.split(|&b| b == b'\n').filter(|l| !l.is_empty()) {
