@@ -165,7 +165,7 @@ impl ProcessLimits {
             let name = parse::trim_end(&trimmed[..name_end]);
             let rest = parse::trim_start(&trimmed[name_end..]);
 
-            let fields: Vec<&[u8]> = parse::split_spaces(rest);
+            let fields = parse::SplitFields::<3>::new(rest);
             if fields.len() < 3 {
                 continue;
             }

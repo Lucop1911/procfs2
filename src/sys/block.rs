@@ -106,7 +106,7 @@ impl BlockDevice {
     pub fn stat(&self) -> Result<BlockStat> {
         let path = self.base.join("stat");
         let bytes = parse::read_file(&path)?;
-        let fields: Vec<&[u8]> = parse::split_spaces(&bytes);
+        let fields = parse::SplitFields::<11>::new(&bytes);
 
         if fields.len() < 11 {
             return Err(Error::Parse {

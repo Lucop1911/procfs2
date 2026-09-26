@@ -242,7 +242,7 @@ impl ProcessStatus {
 
 /// Parses the four space-separated UID values from a `Uid:` line.
 fn parse_uid_line(value: &[u8]) -> Uids {
-    let fields: Vec<&[u8]> = parse::split_spaces(parse::trim_start(value));
+    let fields = parse::SplitFields::<4>::new(parse::trim_start(value));
     let get = |i: usize| -> u32 {
         if i < fields.len() {
             parse::parse_dec_u32(fields[i]).unwrap_or(0)
@@ -260,7 +260,7 @@ fn parse_uid_line(value: &[u8]) -> Uids {
 
 /// Parses the four space-separated GID values from a `Gid:` line.
 fn parse_gid_line(value: &[u8]) -> Gids {
-    let fields: Vec<&[u8]> = parse::split_spaces(parse::trim_start(value));
+    let fields = parse::SplitFields::<4>::new(parse::trim_start(value));
     let get = |i: usize| -> u32 {
         if i < fields.len() {
             parse::parse_dec_u32(fields[i]).unwrap_or(0)

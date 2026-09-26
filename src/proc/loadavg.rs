@@ -29,7 +29,7 @@ pub fn loadavg() -> Result<LoadAvg> {
     let path = Path::new("/proc/loadavg");
     let bytes = parse::read_file(path)?;
 
-    let fields = parse::split_spaces(&bytes);
+    let fields = parse::SplitFields::<5>::new(&bytes);
 
     if fields.len() < 4 {
         return Err(Error::Parse {
