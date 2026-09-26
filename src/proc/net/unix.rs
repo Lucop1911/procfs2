@@ -44,7 +44,7 @@ pub fn unix() -> impl Iterator<Item = Result<UnixEntry>> {
         Err(e) => return vec![Err(e)].into_iter(),
     };
 
-    let mut entries = Vec::new();
+    let mut entries = Vec::with_capacity(parse::count_byte(b'\n', &bytes));
 
     for line in bytes
         .split(|&b| b == b'\n')
@@ -67,12 +67,12 @@ pub fn unix() -> impl Iterator<Item = Result<UnixEntry>> {
         // Fields: Num, RefCount, Protocol, Type, State, Inode, [Path]
         // Some kernels have an extra flags field between Type and State.
         // We locate fields by position from the end.
-        let inode = parse::parse_dec_u64(fields[fields.len() - 2]).unwrap_or(0);
-        let state = parse::parse_hex_u64(fields[fields.len() - 3]).unwrap_or(0) as u32;
-        let type_ = parse::parse_hex_u64(fields[fields.len() - 4]).unwrap_or(0) as u32;
-        let protocol = parse::parse_hex_u64(fields[fields.len() - 5]).unwrap_or(0) as u32;
-        let ref_count = parse::parse_hex_u64(fields[fields.len() - 6]).unwrap_or(0) as u32;
-        let ino = parse::parse_hex_u64(fields[0]).unwrap_or(0);
+        let inode = parse::parse_dec_fast(fields[fields.len() - 2]);
+        let state = parse::parse_hex_fast(fields[fields.len() - 3]) as u32;
+        let type_ = parse::parse_hex_fast(fields[fields.len() - 4]) as u32;
+        let protocol = parse::parse_hex_fast(fields[fields.len() - 5]) as u32;
+        let ref_count = parse::parse_hex_fast(fields[fields.len() - 6]) as u32;
+        let ino = parse::parse_hex_fast(fields[0]);
 
         let path_str = if fields.len() > 7 {
             std::str::from_utf8(fields[fields.len() - 1])

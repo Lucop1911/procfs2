@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::error::{Error, Result};
 use crate::util::Milliseconds;
-use crate::util::parse::{self, parse_dec_u32, parse_dec_u64};
+use crate::util::parse::{self, parse_dec_u32_fast, parse_dec_u64_fast};
 
 #[derive(Debug)]
 /// A single disk's I/O statistics from `/proc/diskstats`.
@@ -78,13 +78,13 @@ pub fn diskstats() -> Result<Vec<DiskStat>> {
             });
         }
 
-        let major = parse_dec_u32(fields[0]).map_err(|_| Error::Parse {
+        let major = parse_dec_u32_fast(fields[0]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid major number",
         })?;
 
-        let minor = parse_dec_u32(fields[1]).map_err(|_| Error::Parse {
+        let minor = parse_dec_u32_fast(fields[1]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid minor number",
@@ -96,68 +96,70 @@ pub fn diskstats() -> Result<Vec<DiskStat>> {
             msg: "invalid name",
         })?;
 
-        let reads_completed = parse_dec_u64(fields[3]).map_err(|_| Error::Parse {
+        let reads_completed = parse_dec_u64_fast(fields[3]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid reads completed",
         })?;
 
-        let reads_merged = parse_dec_u64(fields[4]).map_err(|_| Error::Parse {
+        let reads_merged = parse_dec_u64_fast(fields[4]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid reads merged",
         })?;
 
-        let sectors_read = parse_dec_u64(fields[5]).map_err(|_| Error::Parse {
+        let sectors_read = parse_dec_u64_fast(fields[5]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid sectors read",
         })?;
 
-        let time_reading = Milliseconds(parse_dec_u64(fields[6]).map_err(|_| Error::Parse {
-            path: path.to_path_buf(),
-            line: line_num + 1,
-            msg: "invalid time reading",
-        })?);
+        let time_reading =
+            Milliseconds(parse_dec_u64_fast(fields[6]).map_err(|_| Error::Parse {
+                path: path.to_path_buf(),
+                line: line_num + 1,
+                msg: "invalid time reading",
+            })?);
 
-        let writes_completed = parse_dec_u64(fields[7]).map_err(|_| Error::Parse {
+        let writes_completed = parse_dec_u64_fast(fields[7]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid writes completed",
         })?;
 
-        let writes_merged = parse_dec_u64(fields[8]).map_err(|_| Error::Parse {
+        let writes_merged = parse_dec_u64_fast(fields[8]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid writes merged",
         })?;
 
-        let sectors_written = parse_dec_u64(fields[9]).map_err(|_| Error::Parse {
+        let sectors_written = parse_dec_u64_fast(fields[9]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid sectors written",
         })?;
 
-        let time_writing = Milliseconds(parse_dec_u64(fields[10]).map_err(|_| Error::Parse {
-            path: path.to_path_buf(),
-            line: line_num + 1,
-            msg: "invalid time writing",
-        })?);
+        let time_writing =
+            Milliseconds(parse_dec_u64_fast(fields[10]).map_err(|_| Error::Parse {
+                path: path.to_path_buf(),
+                line: line_num + 1,
+                msg: "invalid time writing",
+            })?);
 
-        let io_in_progress = parse_dec_u64(fields[11]).map_err(|_| Error::Parse {
+        let io_in_progress = parse_dec_u64_fast(fields[11]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid io in progress",
         })?;
 
-        let time_io = Milliseconds(parse_dec_u64(fields[12]).map_err(|_| Error::Parse {
+        let time_io = Milliseconds(parse_dec_u64_fast(fields[12]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid time io",
         })?);
 
         let weighted_time_io =
-            Milliseconds(parse_dec_u64(fields[13]).map_err(|_| Error::Parse {
+            Milliseconds(parse_dec_u64_fast(fields[13]).map_err(|_| Error::Parse {
                 path: path.to_path_buf(),
                 line: line_num + 1,
                 msg: "invalid weighted time io",
@@ -165,7 +167,7 @@ pub fn diskstats() -> Result<Vec<DiskStat>> {
 
         let parse_optional = |index, msg| {
             if index < fields.len() {
-                Ok(Some(parse_dec_u64(fields[index]).map_err(|_| {
+                Ok(Some(parse_dec_u64_fast(fields[index]).map_err(|_| {
                     Error::Parse {
                         path: path.to_path_buf(),
                         line: line_num + 1,

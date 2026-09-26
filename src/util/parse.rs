@@ -41,6 +41,15 @@ pub fn memchr(byte: u8, slice: &[u8]) -> Option<usize> {
     memchr_simd(byte, slice)
 }
 
+/// Counts the occurrences of `byte` in `slice`.
+///
+/// Used to size result buffers before splitting a file's contents line
+/// by line, avoiding repeated reallocation while pushing rows.
+#[inline]
+pub(crate) fn count_byte(byte: u8, slice: &[u8]) -> usize {
+    memchr::memchr_iter(byte, slice).count()
+}
+
 /// Trims trailing whitespace: space, tab, newline, carriage return.
 #[inline]
 pub fn trim_end(slice: &[u8]) -> &[u8] {
@@ -186,6 +195,69 @@ pub(crate) fn parse_dec_fast(s: &[u8]) -> u64 {
         value = value * 10 + (byte - b'0') as u64;
     }
     value
+}
+
+/// Strict hexadecimal parser over raw bytes.
+///
+/// Single-pass like [`parse_hex_fast`] but keeps the contract of
+/// [`parse_hex_u64`]: empty or non-hex input yields an error instead of
+/// silently decoding to `0`. Overflow wraps silently, which kernel
+/// fields never approach.
+#[inline]
+pub(crate) fn parse_hex_u64_fast(s: &[u8]) -> Result<u64> {
+    let err = || Error::Parse {
+        path: std::path::PathBuf::from("<hex>"),
+        line: 0,
+        msg: "invalid hex value",
+    };
+    if s.is_empty() {
+        return Err(err());
+    }
+    let mut value = 0u64;
+    for &byte in s {
+        let digit = match byte {
+            b'0'..=b'9' => byte - b'0',
+            b'a'..=b'f' => byte - b'a' + 10,
+            b'A'..=b'F' => byte - b'A' + 10,
+            _ => return Err(err()),
+        };
+        value = (value << 4) | digit as u64;
+    }
+    Ok(value)
+}
+
+/// Strict decimal parser over raw bytes.
+///
+/// Single-pass like [`parse_dec_fast`] but keeps the contract of
+/// [`parse_dec_u64`]: empty or non-digit input yields an error instead
+/// of silently decoding to `0`. Overflow wraps silently.
+#[inline]
+pub(crate) fn parse_dec_u64_fast(s: &[u8]) -> Result<u64> {
+    let err = || Error::Parse {
+        path: std::path::PathBuf::from("<dec>"),
+        line: 0,
+        msg: "invalid decimal value",
+    };
+    if s.is_empty() {
+        return Err(err());
+    }
+    let mut value = 0u64;
+    for &byte in s {
+        if !byte.is_ascii_digit() {
+            return Err(err());
+        }
+        value = value * 10 + (byte - b'0') as u64;
+    }
+    Ok(value)
+}
+
+/// Strict decimal `u32` parser over raw bytes.
+///
+/// Thin wrapper over [`parse_dec_u64_fast`] truncating to `u32`, mirroring
+/// how [`parse_dec_u32`] wraps [`parse_dec_u64`].
+#[inline]
+pub(crate) fn parse_dec_u32_fast(s: &[u8]) -> Result<u32> {
+    parse_dec_u64_fast(s).map(|v| v as u32)
 }
 
 /// Decodes a little-endian hex IPv4 address into bytes.
@@ -351,20 +423,32 @@ pub struct SplitFields<'a, const N: usize> {
 
 impl<'a, const N: usize> SplitFields<'a, N> {
     /// Splits `slice` on runs of spaces and tabs.
+    ///
+    /// Uses `memchr2` to skip straight to the next delimiter instead of
+    /// scanning byte-by-byte, which keeps the split cheap on rows from
+    /// large files like `/proc/net/unix`.
     #[inline]
     pub fn new(slice: &'a [u8]) -> Self {
         const EMPTY: &[u8] = &[];
         let mut fields = [EMPTY; N];
         let mut len = 0;
-        for field in slice.split(|&b| b == b' ' || b == b'\t') {
-            if field.is_empty() {
-                continue;
+        let mut rest = slice;
+        while len < N {
+            match memchr2(b' ', b'\t', rest) {
+                Some(0) => rest = &rest[1..],
+                Some(idx) => {
+                    fields[len] = &rest[..idx];
+                    len += 1;
+                    rest = &rest[idx + 1..];
+                }
+                None => {
+                    if !rest.is_empty() {
+                        fields[len] = rest;
+                        len += 1;
+                    }
+                    break;
+                }
             }
-            if len >= N {
-                break;
-            }
-            fields[len] = field;
-            len += 1;
         }
         SplitFields { fields, len }
     }

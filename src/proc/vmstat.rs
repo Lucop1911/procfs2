@@ -38,7 +38,7 @@ pub fn vmstat() -> Result<HashMap<String, u64>> {
             msg: "invalid key",
         })?);
 
-        let value = parse::parse_dec_u64(fields[1]).map_err(|_| Error::Parse {
+        let value = parse::parse_dec_u64_fast(fields[1]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid value",

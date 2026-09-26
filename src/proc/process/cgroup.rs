@@ -49,7 +49,7 @@ impl CgroupEntry {
             });
         }
 
-        let hierarchy = parse::parse_dec_u32(fields[0])?;
+        let hierarchy = parse::parse_dec_u32_fast(fields[0])?;
 
         // Controller list is comma-separated. An empty string means
         // no controllers (cgroup v2 unified hierarchy).

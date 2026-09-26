@@ -35,7 +35,6 @@ pub struct Udp6Entry {
     /// Kernel socket state.
     pub state: u32,
     /// UID of the process that opened this socket.
-    /// UID of the process that opened this socket.
     pub uid: u32,
     /// Kernel inode number for the socket.
     pub inode: u64,
@@ -117,7 +116,7 @@ fn parse_udp_file(path: &str, _is_v6: bool) -> impl Iterator<Item = Result<UdpEn
         Err(e) => return vec![Err(e)].into_iter(),
     };
 
-    let mut entries = Vec::new();
+    let mut entries = Vec::with_capacity(parse::count_byte(b'\n', &bytes));
 
     for line in bytes
         .split(|&b| b == b'\n')
@@ -179,7 +178,7 @@ fn parse_udp6_file(path: &str) -> impl Iterator<Item = Result<Udp6Entry>> {
         Err(e) => return vec![Err(e)].into_iter(),
     };
 
-    let mut entries = Vec::new();
+    let mut entries = Vec::with_capacity(parse::count_byte(b'\n', &bytes));
 
     for line in bytes
         .split(|&b| b == b'\n')

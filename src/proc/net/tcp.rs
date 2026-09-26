@@ -125,18 +125,8 @@ fn parse_ipv4(s: &[u8]) -> Result<SocketAddrV4> {
         });
     }
 
-    let bytes = (parse::parse_hex_u64(addr_hex).map_err(|_| Error::Parse {
-        path: std::path::PathBuf::from("<tcp>"),
-        line: 0,
-        msg: "invalid IPv4 address",
-    })? as u32)
-        .to_le_bytes();
-
-    let port = parse::parse_hex_u64(port_hex).map_err(|_| Error::Parse {
-        path: std::path::PathBuf::from("<tcp>"),
-        line: 0,
-        msg: "invalid port",
-    })? as u16;
+    let bytes = parse::decode_ipv4_fast(addr_hex);
+    let port = parse::parse_hex_fast(port_hex) as u16;
 
     Ok(SocketAddrV4::new(std::net::Ipv4Addr::from(bytes), port))
 }
@@ -167,21 +157,9 @@ fn parse_ipv6(s: &[u8]) -> Result<SocketAddrV6> {
         });
     }
 
-    let mut bytes = [0u8; 16];
-    for i in 0..4 {
-        let word = parse::parse_hex_u64(&addr_hex[i * 8..i * 8 + 8]).map_err(|_| Error::Parse {
-            path: std::path::PathBuf::from("<tcp6>"),
-            line: 0,
-            msg: "invalid IPv6 address",
-        })? as u32;
-        bytes[i * 4..i * 4 + 4].copy_from_slice(&word.to_le_bytes());
-    }
+    let bytes = parse::decode_ipv6_fast(addr_hex);
 
-    let port = parse::parse_hex_u64(port_hex).map_err(|_| Error::Parse {
-        path: std::path::PathBuf::from("<tcp6>"),
-        line: 0,
-        msg: "invalid port",
-    })? as u16;
+    let port = parse::parse_hex_fast(port_hex) as u16;
 
     Ok(SocketAddrV6::new(
         std::net::Ipv6Addr::from(bytes),
@@ -199,7 +177,7 @@ fn parse_tcp_file(path: &str, is_v6: bool) -> impl Iterator<Item = Result<TcpEnt
         Err(e) => return vec![Err(e)].into_iter(),
     };
 
-    let mut entries = Vec::new();
+    let mut entries = Vec::with_capacity(parse::count_byte(b'\n', &bytes));
 
     for line in bytes
         .split(|&b| b == b'\n')
@@ -275,15 +253,15 @@ fn parse_tcp_file(path: &str, is_v6: bool) -> impl Iterator<Item = Result<TcpEnt
             }
         };
 
-        let state_code = parse::parse_hex_u64(fields[3]).unwrap_or(0) as u32;
+        let state_code = parse::parse_hex_fast(fields[3]) as u32;
         let state = TcpState::from_hex(state_code);
 
         let (tx_queue_raw, rx_queue_raw) = parse::split_at_byte(fields[4], b':');
-        let tx_queue = parse::parse_hex_u64(tx_queue_raw).unwrap_or(0) as u32;
-        let rx_queue = parse::parse_hex_u64(rx_queue_raw).unwrap_or(0) as u32;
+        let tx_queue = parse::parse_hex_fast(tx_queue_raw) as u32;
+        let rx_queue = parse::parse_hex_fast(rx_queue_raw) as u32;
 
-        let uid = parse::parse_dec_u32(fields[7]).unwrap_or(0);
-        let inode = parse::parse_dec_u64(fields[9]).unwrap_or(0);
+        let uid = parse::parse_dec_fast(fields[7]) as u32;
+        let inode = parse::parse_dec_fast(fields[9]);
 
         entries.push(Ok(TcpEntry {
             local,
@@ -327,7 +305,7 @@ pub fn parse_tcp6_entries() -> impl Iterator<Item = Result<Tcp6Entry>> {
         Err(e) => return vec![Err(e)].into_iter(),
     };
 
-    let mut entries = Vec::new();
+    let mut entries = Vec::with_capacity(parse::count_byte(b'\n', &bytes));
 
     for line in bytes
         .split(|&b| b == b'\n')
@@ -360,15 +338,15 @@ pub fn parse_tcp6_entries() -> impl Iterator<Item = Result<Tcp6Entry>> {
             }
         };
 
-        let state_code = parse::parse_hex_u64(fields[3]).unwrap_or(0) as u32;
+        let state_code = parse::parse_hex_fast(fields[3]) as u32;
         let state = TcpState::from_hex(state_code);
 
         let (tx_queue_raw, rx_queue_raw) = parse::split_at_byte(fields[4], b':');
-        let tx_queue = parse::parse_hex_u64(tx_queue_raw).unwrap_or(0) as u32;
-        let rx_queue = parse::parse_hex_u64(rx_queue_raw).unwrap_or(0) as u32;
+        let tx_queue = parse::parse_hex_fast(tx_queue_raw) as u32;
+        let rx_queue = parse::parse_hex_fast(rx_queue_raw) as u32;
 
-        let uid = parse::parse_dec_u32(fields[7]).unwrap_or(0);
-        let inode = parse::parse_dec_u64(fields[9]).unwrap_or(0);
+        let uid = parse::parse_dec_fast(fields[7]) as u32;
+        let inode = parse::parse_dec_fast(fields[9]);
 
         entries.push(Ok(Tcp6Entry {
             local,
