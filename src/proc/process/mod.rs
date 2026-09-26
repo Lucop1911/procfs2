@@ -533,6 +533,21 @@ impl Process {
 
         parse::parse_dec_u32(&bytes).map(|v| v as u16)
     }
+
+    /// Reads `/proc/PID/oom_score_adj` and returns the OOM adjustment.
+    ///
+    /// The per-process value added to the OOM score before the OOM
+    /// killer chooses a victim. It ranges from `-1000` (grandparented
+    /// system processes, effectively OOM-immune) to `1000` (always
+    /// chosen first). The kernel inherits it across `fork()` but not
+    /// `exec()`. It fits comfortably in an `i16`.
+    pub fn oom_score_adj(&self) -> Result<i16> {
+        let mut buf = [0u8; 32];
+        let path = proc_path(&mut buf, self.pid, "/oom_score_adj");
+        let bytes = parse::read_file(Path::new(path))?;
+
+        parse::parse_dec_i64(&bytes).map(|v| v as i16)
+    }
 }
 
 fn write_u32(mut n: u32, buf: &mut [u8]) -> usize {

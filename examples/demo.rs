@@ -214,9 +214,9 @@ fn main() {
     let oom_score = me.oom_score().unwrap();
     println!("OOM score: {}", oom_score);
 
-    println!("\n=== /proc/self/oom_score ===");
-    let oom_score = me.oom_score().unwrap();
-    println!("oom score: {}", oom_score);
+    println!("\n=== /proc/self/oom_score_adj ===");
+    let oom_score_adj = me.oom_score_adj().unwrap();
+    println!("OOM adjustment: {}", oom_score_adj);
 
     println!("\n=== /proc/stat (CPU) ===");
     let sys_stat = proc::stat().unwrap();
