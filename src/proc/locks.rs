@@ -134,25 +134,25 @@ pub fn locks() -> Result<Vec<Lock>> {
         let (major_b, rest) = parse::split_at_byte(fields[5], b':');
         let (minor_b, inode_b) = parse::split_at_byte(rest, b':');
 
-        let major = parse::parse_hex_u64(major_b).map_err(|_| Error::Parse {
+        let major = parse::parse_hex_u64_fast(major_b).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid major",
         })? as u32;
 
-        let minor = parse::parse_hex_u64(minor_b).map_err(|_| Error::Parse {
+        let minor = parse::parse_hex_u64_fast(minor_b).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid minor",
         })? as u32;
 
-        let inode = parse::parse_dec_u64(inode_b).map_err(|_| Error::Parse {
+        let inode = parse::parse_dec_u64_fast(inode_b).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid inode",
         })?;
 
-        let start = parse::parse_dec_u64(fields[6]).map_err(|_| Error::Parse {
+        let start = parse::parse_dec_u64_fast(fields[6]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid start",
@@ -160,11 +160,13 @@ pub fn locks() -> Result<Vec<Lock>> {
 
         let end = match fields[7] {
             b"EOF" => None,
-            _ => Some(parse::parse_dec_u64(fields[7]).map_err(|_| Error::Parse {
-                path: path.to_path_buf(),
-                line: line_num + 1,
-                msg: "invalid end",
-            })?),
+            _ => Some(
+                parse::parse_dec_u64_fast(fields[7]).map_err(|_| Error::Parse {
+                    path: path.to_path_buf(),
+                    line: line_num + 1,
+                    msg: "invalid end",
+                })?,
+            ),
         };
 
         out.push(Lock {

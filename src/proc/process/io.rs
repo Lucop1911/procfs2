@@ -52,11 +52,12 @@ impl ProcessIo {
                 None => continue,
             };
 
-            let val = parse::parse_dec_u64(parse::trim_start(value)).map_err(|_| Error::Parse {
-                path: std::path::PathBuf::from("<io>"),
-                line: 0,
-                msg: "invalid number",
-            })?;
+            let val =
+                parse::parse_dec_u64_fast(parse::trim_start(value)).map_err(|_| Error::Parse {
+                    path: std::path::PathBuf::from("<io>"),
+                    line: 0,
+                    msg: "invalid number",
+                })?;
 
             match key {
                 b"rchar" => rchar = Some(Bytes(val)),

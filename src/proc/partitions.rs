@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::error::{Error, Result};
-use crate::util::parse::{parse_dec_u32, parse_dec_u64};
+use crate::util::parse::{parse_dec_u32_fast, parse_dec_u64_fast};
 use crate::util::{Kibibytes, parse};
 
 /// A single block device or partition from `/proc/partitions`.
@@ -46,19 +46,19 @@ pub fn partitions() -> Result<Vec<Partition>> {
             });
         }
 
-        let major = parse_dec_u32(fields[0]).map_err(|_| Error::Parse {
+        let major = parse_dec_u32_fast(fields[0]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid major number",
         })?;
 
-        let minor = parse_dec_u32(fields[1]).map_err(|_| Error::Parse {
+        let minor = parse_dec_u32_fast(fields[1]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),
             line: line_num + 1,
             msg: "invalid minor number",
         })?;
 
-        let blocks = parse_dec_u64(fields[2])
+        let blocks = parse_dec_u64_fast(fields[2])
             .map(Kibibytes)
             .map_err(|_| Error::Parse {
                 path: path.to_path_buf(),

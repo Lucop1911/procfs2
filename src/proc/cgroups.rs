@@ -55,9 +55,9 @@ pub fn cgroups() -> Result<Vec<Cgroup>> {
             .to_string()
             .into_boxed_str();
 
-        let hierarchy = parse::parse_dec_u32(fields[1]).unwrap_or(0);
-        let num_cgroups = parse::parse_dec_u32(fields[2]).unwrap_or(0);
-        let enabled = parse::parse_dec_u32(fields[3]).unwrap_or(0) != 0;
+        let hierarchy = parse::parse_dec_u32_fast(fields[1]).unwrap_or(0);
+        let num_cgroups = parse::parse_dec_u32_fast(fields[2]).unwrap_or(0);
+        let enabled = parse::parse_dec_u32_fast(fields[3]).unwrap_or(0) != 0;
 
         entries.push(Cgroup {
             subsys_name,

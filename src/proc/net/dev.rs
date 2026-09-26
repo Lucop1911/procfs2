@@ -100,7 +100,7 @@ pub fn dev() -> impl Iterator<Item = Result<NetDevStat>> {
             continue;
         }
 
-        let get = |i: usize| parse::parse_dec_u64(fields[i]).unwrap_or(0);
+        let get = |i: usize| parse::parse_dec_u64_fast(fields[i]).unwrap_or(0);
 
         entries.push(Ok(NetDevStat {
             name: name_str,
