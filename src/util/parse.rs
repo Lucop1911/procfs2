@@ -272,9 +272,6 @@ pub(crate) fn parse_dec_u64_fast(s: &[u8]) -> Result<u64> {
 }
 
 /// Strict decimal `u32` parser over raw bytes.
-///
-/// Thin wrapper over [`parse_dec_u64_fast`] truncating to `u32`, mirroring
-/// how [`parse_dec_u32`] wraps [`parse_dec_u64`].
 #[inline]
 pub(crate) fn parse_dec_u32_fast(s: &[u8]) -> Result<u32> {
     parse_dec_u64_fast(s).map(|v| v as u32)
