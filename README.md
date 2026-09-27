@@ -157,6 +157,7 @@ features = ["async", "serde", "macros", "watch"]
 - `proc::version()` — `KernelVersion` from `/proc/version`
 - `proc::mounts()` — `Vec<Mount>` from `/proc/mounts`
 - `proc::cgroups()` — `Vec<Cgroup>` from `/proc/cgroups`
+- `more...`
 
 #### Per-Process (`Process`)
 ```rust
@@ -193,10 +194,12 @@ fn main() -> procfs2::Result<()> {
 - `proc::net::tcp()` — `/proc/net/tcp` (IPv4 TCP connections)
 - `proc::net::tcp6()` — `/proc/net/tcp6` (IPv6 TCP connections)
 - `proc::net::udp()` — `/proc/net/udp` (IPv4 UDP sockets)
+- `proc::net::udp6()` — `/proc/net/udp6` (IPv6 UDP sockets)
 - `proc::net::unix()` — `/proc/net/unix` (Unix domain sockets)
 - `proc::net::dev()` — `/proc/net/dev` (per-interface stats)
 - `proc::net::arp()` — `/proc/net/arp` (ARP table)
 - `proc::net::route()` — `/proc/net/route` (routing table)
+- `more...`
 
 ### `/sys` Module
 - `sys::BlockDevice::all()` — `/sys/block/*` (disk stats, queue params, size)
