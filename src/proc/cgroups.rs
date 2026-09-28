@@ -50,10 +50,7 @@ pub fn cgroups() -> Result<Vec<Cgroup>> {
             });
         }
 
-        let subsys_name = std::str::from_utf8(fields[0])
-            .unwrap_or("")
-            .to_string()
-            .into_boxed_str();
+        let subsys_name = std::str::from_utf8(fields[0]).unwrap_or("").into();
 
         let hierarchy = parse::parse_dec_u32_fast(fields[1]).unwrap_or(0);
         let num_cgroups = parse::parse_dec_u32_fast(fields[2]).unwrap_or(0);
