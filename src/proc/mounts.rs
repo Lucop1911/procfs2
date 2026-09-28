@@ -88,13 +88,11 @@ fn decode_escaped_path(s: &[u8]) -> Box<str> {
 
     std::str::from_utf8(&result)
         .unwrap_or("")
-        .to_string()
-        .into_boxed_str()
+        .into()
 }
 
 fn bytes_to_box_str(b: &[u8]) -> Box<str> {
     std::str::from_utf8(b)
         .unwrap_or("")
-        .to_string()
-        .into_boxed_str()
+        .into()
 }
