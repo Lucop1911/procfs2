@@ -44,7 +44,7 @@ pub struct MountInfo {
 
 impl MountInfo {
     /// Parses all lines of a `/proc/PID/mountinfo` file.
-    pub fn parse_all(bytes: &[u8]) -> Result<Vec<Self>> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Vec<Self>> {
         let mut mounts = Vec::new();
 
         for line in bytes.split(|&b| b == b'\n').filter(|l| !l.is_empty()) {

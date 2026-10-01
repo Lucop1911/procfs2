@@ -27,7 +27,7 @@ pub struct CgroupEntry {
 
 impl CgroupEntry {
     /// Parses all lines of a `/proc/PID/cgroup` file.
-    pub fn parse_all(bytes: &[u8]) -> Result<Vec<Self>> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Vec<Self>> {
         let mut entries = Vec::new();
 
         for line in bytes.split(|&b| b == b'\n').filter(|l| !l.is_empty()) {
