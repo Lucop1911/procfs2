@@ -13,6 +13,7 @@ mod statm;
 mod status;
 mod syscall;
 mod threads;
+mod wchan;
 
 pub use auxv::{Auxv, AuxvEntry, auxv_type};
 pub use cgroup::CgroupEntry;
@@ -28,6 +29,7 @@ pub use stat::ProcessStat;
 pub use statm::Statm;
 pub use status::{Gids, ProcessState, ProcessStatus, Uids};
 pub use syscall::{ProcessSyscall, SyscallState};
+pub use wchan::Wchan;
 
 use crate::{
     error::{Error, KernelVersion, Result},
@@ -547,6 +549,22 @@ impl Process {
         let bytes = parse::read_file(Path::new(path))?;
 
         parse::parse_dec_i64(&bytes).map(|v| v as i16)
+    }
+
+    /// Reads `/proc/PID/wchan` and returns where the task is blocked.
+    ///
+    /// The kernel writes the name of the function the task is sleeping
+    /// in (`do_wait`), the address of that function when symbols are
+    /// unavailable, or `0` when the task is runnable or the value is
+    /// withheld by `kptr_restrict`. The usual diagnostic for a process
+    /// that looks stuck, but the value is a snapshot and may be out of
+    /// date by the time it is read.
+    pub fn wchan(&self) -> Result<Wchan> {
+        let mut buf = [0u8; 32];
+        let path = proc_path(&mut buf, self.pid, "/wchan");
+        let bytes = parse::read_file(Path::new(path))?;
+
+        Wchan::from_bytes(&bytes)
     }
 }
 

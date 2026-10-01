@@ -29,6 +29,40 @@ mod tests {
         }
     }
 
+    /// True if `/proc/sys/kernel/kptr_restrict` is 2, which hides kernel
+    /// pointers from readers without `CAP_SYSLOG`. At 1 only other users'
+    /// processes are hidden, which does not apply to a child we spawned.
+    fn kptr_hides_us() -> bool {
+        std::fs::read_to_string("/proc/sys/kernel/kptr_restrict")
+            .expect("kptr_restrict should be readable")
+            .trim()
+            .parse::<u32>()
+            .expect("invalid kptr_restrict")
+            >= 2
+    }
+
+    /// Reads the wchan of a freshly spawned child, waiting for it to stop
+    /// being runnable first.
+    ///
+    /// A child needs a moment to finish `exec` and reach the `nanosleep`
+    /// it was started with, and a runnable task reports 0. Returns `None`
+    /// if the value never settles, or if `kptr_restrict` hides it.
+    fn blocked_child_wchan(child: &Process) -> Option<procfs2::proc::process::Wchan> {
+        use procfs2::proc::process::Wchan;
+
+        if kptr_hides_us() {
+            return None;
+        }
+        for _ in 0..100 {
+            let wchan = child.wchan().expect("Failed to read child wchan");
+            if wchan != Wchan::RunningOrUnavailable {
+                return Some(wchan);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        None
+    }
+
     #[test]
     fn test_live_meminfo() {
         let info = meminfo().expect("Failed to read /proc/meminfo");
@@ -701,6 +735,80 @@ mod tests {
             (-1000..=1000).contains(&adj),
             "oom_score_adj {adj} outside the documented range"
         );
+    }
+
+    #[test]
+    fn test_live_process_wchan() {
+        use procfs2::proc::process::Wchan;
+
+        let me = Process::current().expect("Failed to get current process");
+        let wchan = me.wchan().expect("Failed to read process wchan");
+
+        // The value is a snapshot of where the task was when the file
+        // was read, so all that can be checked is that it came back in
+        // one of the three shapes the kernel writes.
+        match wchan {
+            Wchan::RunningOrUnavailable => {}
+            Wchan::Symbol(name) => assert!(
+                !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+                "symbol {name:?} should be a bare kernel identifier"
+            ),
+            Wchan::Address(addr) => assert_ne!(addr, 0, "address should not be zero"),
+        }
+    }
+
+    #[test]
+    fn test_live_process_wchan_blocked() {
+        // A process asleep in nanosleep stays put for the whole test,
+        // so its wchan is stable and not the runnable case.
+        let mut child = std::process::Command::new("/bin/sleep")
+            .arg("2")
+            .spawn()
+            .expect("Failed to spawn child process");
+        let child_proc = Process::new(child.id()).expect("Failed to get child process");
+
+        let blocked = blocked_child_wchan(&child_proc);
+        let again = child_proc.wchan().expect("Failed to re-read child wchan");
+        child.wait().expect("Failed to wait on child");
+
+        assert!(
+            blocked.is_some() || kptr_hides_us(),
+            "a sleeping process should report where it is blocked"
+        );
+        if let Some(blocked) = blocked {
+            assert_eq!(blocked, again, "wchan should be stable while blocked");
+        }
+    }
+
+    #[test]
+    fn test_live_process_wchan_matches_file() {
+        use procfs2::proc::process::Wchan;
+
+        // Compare against the raw file, which the kernel writes as one
+        // token: `0`, a hex address, or a symbol name, plus newline.
+        let mut child = std::process::Command::new("/bin/sleep")
+            .arg("2")
+            .spawn()
+            .expect("Failed to spawn child process");
+        let child_proc = Process::new(child.id()).expect("Failed to get child process");
+
+        let parsed = blocked_child_wchan(&child_proc).unwrap_or(Wchan::RunningOrUnavailable);
+        let raw = std::fs::read_to_string(format!("/proc/{}/wchan", child.id()))
+            .expect("wchan file should exist on this kernel");
+        child.wait().expect("Failed to wait on child");
+
+        let field = raw.trim();
+        if field == "0" {
+            assert_eq!(parsed, Wchan::RunningOrUnavailable);
+        } else if let Ok(addr) = u64::from_str_radix(field, 16) {
+            assert_eq!(parsed, Wchan::Address(addr), "parse should match raw file");
+        } else {
+            assert_eq!(
+                parsed,
+                Wchan::Symbol(field.to_string()),
+                "parse should match raw file contents"
+            );
+        }
     }
 
     #[test]
