@@ -362,7 +362,7 @@ impl Process {
         let mut buf = [0u8; 32];
         let path = proc_path(&mut buf, self.pid, "/mountinfo");
         let bytes = parse::read_file(Path::new(&path))?;
-        MountInfo::parse_all(&bytes)
+        MountInfo::from_bytes(&bytes)
     }
 
     /// Reads `/proc/PID/cgroup` and returns cgroup memberships.
@@ -374,7 +374,7 @@ impl Process {
         let mut buf = [0u8; 32];
         let path = proc_path(&mut buf, self.pid, "/cgroup");
         let bytes = parse::read_file(Path::new(&path))?;
-        CgroupEntry::parse_all(&bytes)
+        CgroupEntry::from_bytes(&bytes)
     }
 
     /// Reads `/proc/PID/ns/` and returns namespace inode numbers.
