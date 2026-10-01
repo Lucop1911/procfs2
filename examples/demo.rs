@@ -218,6 +218,16 @@ fn main() {
     let oom_score_adj = me.oom_score_adj().unwrap();
     println!("OOM adjustment: {}", oom_score_adj);
 
+    println!("\n=== /proc/self/wchan ===");
+    let wchan = me.wchan().unwrap();
+    match wchan {
+        procfs2::proc::process::Wchan::RunningOrUnavailable => {
+            println!("Wchan: Running or Unavailable")
+        }
+        procfs2::proc::process::Wchan::Address(n) => println!("Wchan: {}", n),
+        procfs2::proc::process::Wchan::Symbol(s) => println!("Wchan {}", s),
+    }
+
     println!("\n=== /proc/stat (CPU) ===");
     let sys_stat = proc::stat().unwrap();
     println!("Context switches: {}", sys_stat.ctxt);
