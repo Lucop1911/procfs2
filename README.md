@@ -9,7 +9,7 @@ A modern, zero-copy, strongly-typed Rust library for reading Linux's `/proc` and
 
 ## Features
 
-- **Native async support** — Not just async file reads: a generic polling combinator (`watch()`) turns any snapshot function into a `Stream`, plus purpose-built delta-streaming for cumulative counters (see [Live Monitoring](#live-monitoring--async-delta-streaming))
+- **Native async support** — Not just async file reads: a generic polling combinator (`watch()`) turns any snapshot function into a `Stream` (see [Live Monitoring](#live-monitoring--async-polling))
 - **Granular, typed errors** — Distinguishes *why* an operation failed (process exited mid-read, unsupported kernel, permission denied, malformed data at a specific line) instead of a single generic I/O failure
 - **Runtime-safe** — No panics in the core parsing paths; all errors returned as typed `Error` variants
 - **Typed API** — Every kernel file maps to a concrete Rust struct or enum
@@ -70,9 +70,9 @@ fn main() -> procfs2::Result<()> {
 }
 ```
 
-## Live Monitoring / Async Delta-Streaming
+## Live Monitoring / Async Polling
 
-Most `/proc` counters (network bytes, disk I/O, CPU jiffies) are cumulative — what you usually want is a *rate*, not a raw snapshot. procfs2 provides this as a first-class primitive instead of leaving it to every caller to reimplement "read twice, subtract, divide by elapsed time."
+Most `/proc` counters (network bytes, disk I/O, CPU jiffies) are cumulative — what you usually want is a *rate*, not a raw snapshot. procfs2 provides the polling infrastructure and a snapshot-delta helper, so you don't have to reimplement "read twice, subtract, divide by elapsed time" yourself.
 
 ```rust, no_run
 use procfs2::async_helpers::{self, read_to_string};
@@ -112,7 +112,7 @@ async fn main() {
 }
 ```
 
-`async_helpers::watch()` is a generic polling combinator — it accepts any `async fn() -> Result<T>` and turns it into a `Stream<Item = Result<T>>` on a fixed interval. Layer `Sampler<T>` on top for automatic, wraparound-safe delta computation between consecutive snapshots.
+`async_helpers::watch()` is a generic polling combinator — it accepts any `async fn() -> Result<T>` and turns it into a `Stream<Item = Result<T>>` on a fixed interval. For cumulative counters, pair it with `Sampler<T>` (from the `watch` feature): `Sampler::update(snapshot)` returns the *previous* snapshot along with the elapsed time between the two reads, leaving the subtraction and rate division to you.
 
 This requires the `async` feature. procfs has no async or streaming API at all — everything above is a pattern procfs2 supports natively rather than something you'd hand-roll on top of a sync-only crate.
 
@@ -139,8 +139,8 @@ features = ["async", "serde", "macros", "watch"]
 
 | Feature | Description | Extra Dependencies |
 |---------|-------------|-------------------|
-| `async` | Async read variants, generic `watch()` polling combinator, delta-streaming (`Sampler`, `NetDeltaSample`) | `tokio` |
-| `watch` | `inotify`-based `Watcher` API for regular files | `libc` |
+| `async` | Async read variants, generic `watch()` polling combinator | `tokio` |
+| `watch` | `inotify`-based `Watcher` API for regular files, plus `Sampler<T>` snapshot-delta helper | `libc` |
 | `serde` | `Serialize`/`Deserialize` on all structs | `serde` |
 | `macros` | `#[derive(ProcKeyValue)]` proc-macro | `procfs2-macros` |
 
@@ -298,7 +298,7 @@ A small CLI that dumps system info is included as an example:
 cargo run --example demo
 ```
 
-Async delta-streaming and inotify examples are also included:
+Async polling and inotify examples are also included:
 
 ```bash
 cargo run --example async_watch --features async
