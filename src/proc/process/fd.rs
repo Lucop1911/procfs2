@@ -1,6 +1,6 @@
 use crate::{
     error::{Error, Result},
-    proc::process::proc_path,
+    proc::process::with_proc_path,
 };
 
 /// Target of a file descriptor symlink in `/proc/PID/fd/`.
@@ -77,41 +77,40 @@ pub struct Fd {
 /// Iterates the directory, reads each symlink, and classifies
 /// the target as a file, socket, pipe, anon-inode, or other.
 pub fn read_fds(pid: u32) -> Result<Vec<Fd>> {
-    let mut buf = [0u8; 32];
-    let path = proc_path(&mut buf, pid, "/fd");
+    with_proc_path(pid, "/fd", |path| {
+        let entries = std::fs::read_dir(path).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                Error::PermissionDenied(std::path::PathBuf::from(path))
+            } else {
+                Error::Io {
+                    path: Some(std::path::PathBuf::from(path)),
+                    error: e,
+                }
+            }
+        })?;
 
-    let entries = std::fs::read_dir(path).map_err(|e| {
-        if e.kind() == std::io::ErrorKind::PermissionDenied {
-            Error::PermissionDenied(std::path::PathBuf::from(path))
-        } else {
-            Error::Io {
+        let mut fds = Vec::new();
+
+        for entry in entries {
+            let entry = entry.map_err(|e| Error::Io {
                 path: Some(std::path::PathBuf::from(path)),
                 error: e,
+            })?;
+            let fd_num = entry.file_name().to_string_lossy().parse::<i32>().ok();
+            if let Some(num) = fd_num {
+                let target = std::fs::read_link(entry.path()).map_err(|e| Error::Io {
+                    path: Some(entry.path().to_path_buf()),
+                    error: e,
+                })?;
+                let target_str = target.to_string_lossy();
+                let fd_target = FdTarget::parse(&target_str);
+                fds.push(Fd {
+                    number: num,
+                    target: fd_target,
+                });
             }
         }
-    })?;
 
-    let mut fds = Vec::new();
-
-    for entry in entries {
-        let entry = entry.map_err(|e| Error::Io {
-            path: Some(std::path::PathBuf::from(path)),
-            error: e,
-        })?;
-        let fd_num = entry.file_name().to_string_lossy().parse::<i32>().ok();
-        if let Some(num) = fd_num {
-            let target = std::fs::read_link(entry.path()).map_err(|e| Error::Io {
-                path: Some(entry.path().to_path_buf()),
-                error: e,
-            })?;
-            let target_str = target.to_string_lossy();
-            let fd_target = FdTarget::parse(&target_str);
-            fds.push(Fd {
-                number: num,
-                target: fd_target,
-            });
-        }
-    }
-
-    Ok(fds)
+        Ok(fds)
+    })
 }

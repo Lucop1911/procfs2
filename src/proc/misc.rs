@@ -3,6 +3,9 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Fields in a `/proc/misc` row: minor number and device name.
+const MISC_FIELDS: usize = 2;
+
 /// A misc character device from `/proc/misc`.
 ///
 /// Each line maps a minor number to a device name (e.g. `fuse`,
@@ -33,7 +36,7 @@ pub fn misc() -> Result<Vec<Misc>> {
         .filter(|l| !l.is_empty())
         .enumerate()
     {
-        let fields = parse::SplitFields::<2>::new(line);
+        let fields = parse::SplitFields::<MISC_FIELDS>::new(line);
 
         let minor = parse::parse_dec_u32(fields[0])
             .map(|n| n as u8)

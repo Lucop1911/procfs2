@@ -1,6 +1,16 @@
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Fields before the optional ones: `id`, `parent_id`, device, root,
+/// mount point, and per-mount options.
+const FIRST_OPTIONAL: usize = 6;
+/// Fields after the `-` separator: fs type, source, and super options.
+const TAIL_FIELDS: usize = 3;
+/// Minimum fields in a well-formed line.
+const MIN_FIELDS: usize = 10;
+/// Maximum fields parsed from one line.
+const MAX_FIELDS: usize = 16;
+
 /// A single mount entry from `/proc/PID/mountinfo`.
 ///
 /// This format is richer than `/proc/mounts` (which is equivalent to
@@ -55,8 +65,8 @@ impl MountInfo {
     }
 
     fn parse_line(line: &[u8]) -> Result<Self> {
-        let fields = parse::SplitFields::<16>::new(line);
-        if fields.len() < 10 {
+        let fields = parse::SplitFields::<MAX_FIELDS>::new(line);
+        if fields.len() < MIN_FIELDS {
             return Err(Error::Parse {
                 path: std::path::PathBuf::from("<mountinfo>"),
                 line: 0,
@@ -85,7 +95,7 @@ impl MountInfo {
         // super_options).
         match fields.iter().position(|f| *f == b"-") {
             Some(sep) => {
-                if fields.len() <= sep + 3 {
+                if fields.len() <= sep + TAIL_FIELDS {
                     return Err(Error::Parse {
                         path: std::path::PathBuf::from("<mountinfo>"),
                         line: 0,
@@ -93,8 +103,10 @@ impl MountInfo {
                     });
                 }
 
-                let optional_fields: Vec<Box<str>> =
-                    fields[6..sep].iter().map(|f| bytes_to_box_str(f)).collect();
+                let optional_fields: Vec<Box<str>> = fields[FIRST_OPTIONAL..sep]
+                    .iter()
+                    .map(|f| bytes_to_box_str(f))
+                    .collect();
 
                 Ok(MountInfo {
                     id,
@@ -114,8 +126,10 @@ impl MountInfo {
                 // No `-` separator means no optional fields and no
                 // trailing fs_type/source/super_options. This is
                 // unusual but we handle it gracefully.
-                let optional_fields: Vec<Box<str>> =
-                    fields[6..].iter().map(|f| bytes_to_box_str(f)).collect();
+                let optional_fields: Vec<Box<str>> = fields[FIRST_OPTIONAL..]
+                    .iter()
+                    .map(|f| bytes_to_box_str(f))
+                    .collect();
 
                 Ok(MountInfo {
                     id,

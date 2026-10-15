@@ -3,6 +3,9 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::{Kibibytes, parse};
 
+/// Fields in a `/proc/swaps` row: filename, type, size, used, priority.
+const SWAP_FIELDS: usize = 5;
+
 /// The type of a swap area, from the `Type` column of `/proc/swaps`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SwapType {
@@ -44,13 +47,13 @@ pub fn swaps() -> Result<Vec<Swap>> {
         .filter(|l| !l.is_empty())
         .enumerate()
     {
-        let fields = parse::SplitFields::<5>::new(line);
+        let fields = parse::SplitFields::<SWAP_FIELDS>::new(line);
 
         // Skip the header line rather than assuming it is line zero.
         if fields.first() == Some(&&b"Filename"[..]) {
             continue;
         }
-        if fields.len() != 5 {
+        if fields.len() != SWAP_FIELDS {
             return Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: line_num + 1,

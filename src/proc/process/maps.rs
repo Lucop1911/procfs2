@@ -10,7 +10,7 @@ bitflags! {
     /// Memory region access permissions.
     ///
     /// Parsed from the 4-character permission string in `/proc/PID/maps`:
-    /// `rwxp` or `rwxs`. The fifth character is always `s` (shared) or
+    /// `rwxp` or `rwxs`. The fourth character is `s` (shared) or
     /// `p` (private), mapped to the [`SHARED`](Self::SHARED) and
     /// [`PRIVATE`](Self::PRIVATE) flags respectively.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -203,8 +203,8 @@ impl MemoryMap {
     }
 
     fn parse_line(line: &[u8]) -> Result<Self> {
-        let fields = parse::SplitFields::<8>::new(line);
-        if fields.len() < 5 {
+        let fields = parse::SplitFields::<MAX_FIELDS>::new(line);
+        if fields.len() < MIN_FIELDS {
             return Err(Error::Parse {
                 path: std::path::PathBuf::from("<maps>"),
                 line: 0,
@@ -217,7 +217,7 @@ impl MemoryMap {
         let offset = parse::parse_hex_u64_fast(fields[2])?;
         let device = parse_device(fields[3])?;
         let inode = parse::parse_dec_u64_fast(fields[4])?;
-        let pathname = if fields.len() > 5 {
+        let pathname = if fields.len() > MIN_FIELDS {
             parse_pathname(&fields[5..])
         } else {
             MapPathname::Anonymous
@@ -325,9 +325,22 @@ fn parse_address_range(s: &[u8]) -> Result<Range<u64>> {
     Ok(start..end)
 }
 
+/// Length of the permission string in `/proc/PID/maps` (e.g. `rwxp`).
+const PERM_LEN: usize = 4;
+/// Fields before the (optional) pathname: address, perms, offset, device, inode.
+const MIN_FIELDS: usize = 5;
+/// [`MIN_FIELDS`] plus however many whitespace-separated pieces the pathname
+/// contributes when it contains spaces.
+const MAX_FIELDS: usize = 8;
+// Positions of each permission flag within that string.
+const PERM_READ: usize = 0;
+const PERM_WRITE: usize = 1;
+const PERM_EXEC: usize = 2;
+const PERM_SHARE: usize = 3;
+
 /// Parses a 4-character permission string like `rwxp`.
 fn parse_permissions(s: &[u8]) -> Result<MapPermissions> {
-    if s.len() < 4 {
+    if s.len() < PERM_LEN {
         return Err(Error::Parse {
             path: std::path::PathBuf::from("<maps>"),
             line: 0,
@@ -337,18 +350,18 @@ fn parse_permissions(s: &[u8]) -> Result<MapPermissions> {
 
     let mut perms = MapPermissions::empty();
 
-    if s[0] == b'r' {
+    if s[PERM_READ] == b'r' {
         perms |= MapPermissions::READ;
     }
-    if s[1] == b'w' {
+    if s[PERM_WRITE] == b'w' {
         perms |= MapPermissions::WRITE;
     }
-    if s[2] == b'x' {
+    if s[PERM_EXEC] == b'x' {
         perms |= MapPermissions::EXEC;
     }
-    if s[3] == b's' {
+    if s[PERM_SHARE] == b's' {
         perms |= MapPermissions::SHARED;
-    } else if s[3] == b'p' {
+    } else if s[PERM_SHARE] == b'p' {
         perms |= MapPermissions::PRIVATE;
     }
 

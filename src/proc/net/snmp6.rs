@@ -3,6 +3,9 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Fields in a `/proc/net/snmp6` row: the counter name and its value.
+const COUNTER_FIELDS: usize = 2;
+
 /// IPv6 packet statistics read from `/proc/net/snmp6`.
 #[derive(Debug, Default)]
 pub struct Ip6Stats {
@@ -199,8 +202,8 @@ pub fn snmp6() -> Result<Snmp6Info> {
         .filter(|line| !line.is_empty())
         .enumerate()
     {
-        let fields = parse::SplitFields::<2>::new(line);
-        if fields.len() != 2 {
+        let fields = parse::SplitFields::<COUNTER_FIELDS>::new(line);
+        if fields.len() != COUNTER_FIELDS {
             return Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: line_number + 1,

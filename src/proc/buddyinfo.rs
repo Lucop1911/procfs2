@@ -3,6 +3,11 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Fixed leading fields in a row: `Node <id>, zone <name>`.
+const PREFIX_FIELDS: usize = 4;
+/// Maximum fields parsed from one line.
+const MAX_FIELDS: usize = 32;
+
 /// Free list sizes for one node/zone from `/proc/buddyinfo`.
 ///
 /// A chunk of order `i` covers `2^i` consecutive pages.
@@ -33,9 +38,9 @@ pub fn buddyinfo() -> Result<Vec<BuddyInfo>> {
         .filter(|l| !l.is_empty())
         .enumerate()
     {
-        let fields = parse::SplitFields::<32>::new(line);
+        let fields = parse::SplitFields::<MAX_FIELDS>::new(line);
 
-        if fields.len() < 5 {
+        if fields.len() < PREFIX_FIELDS + 1 {
             return Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: line_num + 1,
@@ -57,8 +62,8 @@ pub fn buddyinfo() -> Result<Vec<BuddyInfo>> {
             msg: "invalid zone",
         })?;
 
-        let mut free_lists = Vec::with_capacity(fields.len() - 4);
-        for field in &fields[4..] {
+        let mut free_lists = Vec::with_capacity(fields.len() - PREFIX_FIELDS);
+        for field in &fields[PREFIX_FIELDS..] {
             free_lists.push(parse::parse_dec_u64(field).map_err(|_| Error::Parse {
                 path: path.to_path_buf(),
                 line: line_num + 1,

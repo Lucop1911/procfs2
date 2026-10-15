@@ -4,6 +4,9 @@ use crate::error::{Error, Result};
 use crate::util::parse::{parse_dec_u32_fast, parse_dec_u64_fast};
 use crate::util::{Kibibytes, parse};
 
+/// Fields in a `/proc/partitions` row: major, minor, blocks, name.
+const PARTITION_FIELDS: usize = 4;
+
 /// A single block device or partition from `/proc/partitions`.
 #[derive(Debug, Clone)]
 pub struct Partition {
@@ -33,12 +36,12 @@ pub fn partitions() -> Result<Vec<Partition>> {
         .filter(|l| !l.is_empty())
         .enumerate()
     {
-        let fields = parse::SplitFields::<4>::new(line);
+        let fields = parse::SplitFields::<PARTITION_FIELDS>::new(line);
 
         if fields.first() == Some(&&b"major"[..]) {
             continue;
         }
-        if fields.len() != 4 {
+        if fields.len() != PARTITION_FIELDS {
             return Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: line_num + 1,

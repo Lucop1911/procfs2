@@ -4,6 +4,11 @@ use crate::error::{Error, Result};
 use crate::util::Milliseconds;
 use crate::util::parse::{self, parse_dec_u32_fast, parse_dec_u64_fast};
 
+/// Minimum fields per line: `major`, `minor`, `name`, and 11 statistics.
+const MIN_FIELDS: usize = 14;
+/// Maximum fields per line, including the optional discard and flush stats.
+const MAX_FIELDS: usize = 20;
+
 #[derive(Debug)]
 /// A single disk's I/O statistics from `/proc/diskstats`.
 pub struct DiskStat {
@@ -68,9 +73,9 @@ pub fn diskstats() -> Result<Vec<DiskStat>> {
         .filter(|l| !l.is_empty())
         .enumerate()
     {
-        let fields = parse::SplitFields::<20>::new(line);
+        let fields = parse::SplitFields::<MAX_FIELDS>::new(line);
 
-        if fields.len() < 14 || fields.len() > 20 {
+        if fields.len() < MIN_FIELDS || fields.len() > MAX_FIELDS {
             return Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: line_num + 1,

@@ -3,6 +3,11 @@ use std::net::{SocketAddrV4, SocketAddrV6};
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+use super::{
+    COL_INODE, COL_LOCAL, COL_QUEUE, COL_REMOTE, COL_STATE, COL_UID, IPV4_HEX_LEN, IPV6_HEX_LEN,
+    SOCKET_TABLE_FIELDS,
+};
+
 /// A single UDP socket entry from `/proc/net/udp`.
 ///
 /// UDP is connectionless, so `remote` is typically `0.0.0.0:0`
@@ -55,7 +60,7 @@ fn parse_ipv4(s: &[u8]) -> Result<SocketAddrV4> {
     let addr_hex = &s[..colon];
     let port_hex = &s[colon + 1..];
 
-    if addr_hex.len() != 8 {
+    if addr_hex.len() != IPV4_HEX_LEN {
         return Err(Error::Parse {
             path: std::path::PathBuf::from("<udp>"),
             line: 0,
@@ -80,7 +85,7 @@ fn parse_ipv6(s: &[u8]) -> Result<SocketAddrV6> {
     let addr_hex = &s[..colon];
     let port_hex = &s[colon + 1..];
 
-    if addr_hex.len() != 32 {
+    if addr_hex.len() != IPV6_HEX_LEN {
         return Err(Error::Parse {
             path: std::path::PathBuf::from("<udp6>"),
             line: 0,
@@ -123,8 +128,8 @@ fn parse_udp_file(path: &str, _is_v6: bool) -> impl Iterator<Item = Result<UdpEn
         .filter(|l| !l.is_empty())
         .skip(1)
     {
-        let fields = parse::SplitFields::<12>::new(line);
-        if fields.len() < 12 {
+        let fields = parse::SplitFields::<SOCKET_TABLE_FIELDS>::new(line);
+        if fields.len() < SOCKET_TABLE_FIELDS {
             entries.push(Err(Error::Parse {
                 path: std::path::PathBuf::from(path),
                 line: 0,
@@ -133,7 +138,7 @@ fn parse_udp_file(path: &str, _is_v6: bool) -> impl Iterator<Item = Result<UdpEn
             continue;
         }
 
-        let local = match parse_ipv4(fields[1]) {
+        let local = match parse_ipv4(fields[COL_LOCAL]) {
             Ok(addr) => addr,
             Err(e) => {
                 entries.push(Err(e));
@@ -141,7 +146,7 @@ fn parse_udp_file(path: &str, _is_v6: bool) -> impl Iterator<Item = Result<UdpEn
             }
         };
 
-        let remote = match parse_ipv4(fields[2]) {
+        let remote = match parse_ipv4(fields[COL_REMOTE]) {
             Ok(addr) => addr,
             Err(e) => {
                 entries.push(Err(e));
@@ -149,14 +154,14 @@ fn parse_udp_file(path: &str, _is_v6: bool) -> impl Iterator<Item = Result<UdpEn
             }
         };
 
-        let state = parse::parse_hex_fast(fields[3]) as u32;
+        let state = parse::parse_hex_fast(fields[COL_STATE]) as u32;
 
-        let (tx_queue_raw, rx_queue_raw) = parse::split_at_byte(fields[4], b':');
+        let (tx_queue_raw, rx_queue_raw) = parse::split_at_byte(fields[COL_QUEUE], b':');
         let tx_queue = parse::parse_hex_fast(tx_queue_raw) as u32;
         let rx_queue = parse::parse_hex_fast(rx_queue_raw) as u32;
 
-        let uid = parse::parse_dec_fast(fields[7]) as u32;
-        let inode = parse::parse_dec_fast(fields[9]);
+        let uid = parse::parse_dec_fast(fields[COL_UID]) as u32;
+        let inode = parse::parse_dec_fast(fields[COL_INODE]);
 
         entries.push(Ok(UdpEntry {
             local,
@@ -185,8 +190,8 @@ fn parse_udp6_file(path: &str) -> impl Iterator<Item = Result<Udp6Entry>> {
         .filter(|l| !l.is_empty())
         .skip(1)
     {
-        let fields = parse::SplitFields::<12>::new(line);
-        if fields.len() < 12 {
+        let fields = parse::SplitFields::<SOCKET_TABLE_FIELDS>::new(line);
+        if fields.len() < SOCKET_TABLE_FIELDS {
             entries.push(Err(Error::Parse {
                 path: std::path::PathBuf::from(path),
                 line: 0,
@@ -195,7 +200,7 @@ fn parse_udp6_file(path: &str) -> impl Iterator<Item = Result<Udp6Entry>> {
             continue;
         }
 
-        let local = match parse_ipv6(fields[1]) {
+        let local = match parse_ipv6(fields[COL_LOCAL]) {
             Ok(addr) => addr,
             Err(e) => {
                 entries.push(Err(e));
@@ -203,7 +208,7 @@ fn parse_udp6_file(path: &str) -> impl Iterator<Item = Result<Udp6Entry>> {
             }
         };
 
-        let remote = match parse_ipv6(fields[2]) {
+        let remote = match parse_ipv6(fields[COL_REMOTE]) {
             Ok(addr) => addr,
             Err(e) => {
                 entries.push(Err(e));
@@ -211,14 +216,14 @@ fn parse_udp6_file(path: &str) -> impl Iterator<Item = Result<Udp6Entry>> {
             }
         };
 
-        let state = parse::parse_hex_fast(fields[3]) as u32;
+        let state = parse::parse_hex_fast(fields[COL_STATE]) as u32;
 
-        let (tx_queue_raw, rx_queue_raw) = parse::split_at_byte(fields[4], b':');
+        let (tx_queue_raw, rx_queue_raw) = parse::split_at_byte(fields[COL_QUEUE], b':');
         let tx_queue = parse::parse_hex_fast(tx_queue_raw) as u32;
         let rx_queue = parse::parse_hex_fast(rx_queue_raw) as u32;
 
-        let uid = parse::parse_dec_fast(fields[7]) as u32;
-        let inode = parse::parse_dec_fast(fields[9]);
+        let uid = parse::parse_dec_fast(fields[COL_UID]) as u32;
+        let inode = parse::parse_dec_fast(fields[COL_INODE]);
 
         entries.push(Ok(Udp6Entry {
             local,

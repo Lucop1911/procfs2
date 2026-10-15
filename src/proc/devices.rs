@@ -3,6 +3,9 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Fields in a `/proc/devices` row: major number and device name.
+const DEVICE_FIELDS: usize = 2;
+
 /// The device class of an entry in `/proc/devices`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceKind {
@@ -64,8 +67,8 @@ pub fn devices() -> Result<Vec<Device>> {
             });
         };
 
-        let fields = parse::SplitFields::<2>::new(line);
-        if fields.len() != 2 {
+        let fields = parse::SplitFields::<DEVICE_FIELDS>::new(line);
+        if fields.len() != DEVICE_FIELDS {
             return Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: line_num + 1,

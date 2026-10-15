@@ -4,6 +4,11 @@ use crate::error::{Error, Result};
 use crate::util::Bytes;
 use crate::util::parse;
 
+/// Header lines at the top of `/proc/net/dev`.
+const HEADER_LINES: usize = 2;
+/// Counters reported per interface: 8 receive followed by 8 transmit.
+const COUNTER_COUNT: usize = 16;
+
 /// Per-interface network device statistics from `/proc/net/dev`.
 ///
 /// Each line describes one network interface with separate RX
@@ -67,7 +72,7 @@ pub fn dev() -> impl Iterator<Item = Result<NetDevStat>> {
     for line in bytes
         .split(|&b| b == b'\n')
         .filter(|l| !l.is_empty())
-        .skip(2)
+        .skip(HEADER_LINES)
     {
         let colon = match parse::memchr(b':', line) {
             Some(idx) => idx,
@@ -89,9 +94,9 @@ pub fn dev() -> impl Iterator<Item = Result<NetDevStat>> {
             .into_boxed_str();
 
         let counters = parse::trim_start(&line[colon + 1..]);
-        let fields = parse::SplitFields::<16>::new(counters);
+        let fields = parse::SplitFields::<COUNTER_COUNT>::new(counters);
 
-        if fields.len() < 16 {
+        if fields.len() < COUNTER_COUNT {
             entries.push(Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: 0,

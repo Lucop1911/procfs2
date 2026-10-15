@@ -3,6 +3,9 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Fields in a `/proc/cgroups` row: subsystem, hierarchy, count, enabled.
+const CGROUP_FIELDS: usize = 4;
+
 /// System-wide cgroup hierarchy information from `/proc/cgroups`.
 ///
 /// Lists each registered cgroup controller (subsystem) with its
@@ -41,8 +44,8 @@ pub fn cgroups() -> Result<Vec<Cgroup>> {
             continue;
         }
 
-        let fields = parse::SplitFields::<4>::new(line);
-        if fields.len() < 4 {
+        let fields = parse::SplitFields::<CGROUP_FIELDS>::new(line);
+        if fields.len() < CGROUP_FIELDS {
             return Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: 0,

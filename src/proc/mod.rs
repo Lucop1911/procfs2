@@ -90,6 +90,10 @@ pub use version::version;
 pub use vmstat::vmstat;
 pub use zoneinfo::{Pcp, ZoneInfo, ZonePages, zoneinfo};
 
+/// Spaces of indentation per nesting level in `/proc/iomem` and
+/// `/proc/ioports`.
+pub(crate) const INDENT_WIDTH: usize = 2;
+
 /// Reads `/proc/meminfo` and returns system-wide memory statistics.
 ///
 /// This is a convenience wrapper around [`MemInfo::current`].

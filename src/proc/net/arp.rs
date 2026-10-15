@@ -4,6 +4,28 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Bytes in a MAC address.
+const MAC_LEN: usize = 6;
+/// Hex digits in one byte.
+const HEX_PAIR_LEN: usize = 2;
+/// Characters per MAC group: a hex byte plus its `:` separator.
+const MAC_GROUP_STRIDE: usize = HEX_PAIR_LEN + 1;
+/// Characters in a `aa:bb:cc:dd:ee:ff` string.
+const MAC_STR_LEN: usize = MAC_LEN * MAC_GROUP_STRIDE - 1;
+/// Columns in the `/proc/net/arp` table, header excluded.
+const ARP_FIELDS: usize = 6;
+// Column indices, in the order the header prints them.
+const COL_IP: usize = 0;
+const COL_HW_TYPE: usize = 1;
+const COL_FLAGS: usize = 2;
+const COL_MAC: usize = 3;
+const COL_DEVICE: usize = 5;
+
+/// Strips the `0x` prefix from a hex column, if present.
+fn strip_0x(field: &[u8]) -> &[u8] {
+    field.strip_prefix(b"0x").unwrap_or(field)
+}
+
 /// A single ARP table entry from `/proc/net/arp`.
 ///
 /// The ARP table maps IPv4 addresses to MAC addresses on the local
@@ -17,7 +39,7 @@ pub struct ArpEntry {
     /// ARP flags (e.g. `0x02` = complete, `0x06` = published).
     pub flags: u16,
     /// MAC address of the neighbor.
-    pub mac: [u8; 6],
+    pub mac: [u8; MAC_LEN],
     /// Network interface this entry belongs to.
     pub device: Box<str>,
 }
@@ -42,8 +64,8 @@ pub fn arp() -> impl Iterator<Item = Result<ArpEntry>> {
         .filter(|l| !l.is_empty())
         .skip(1)
     {
-        let fields = parse::SplitFields::<6>::new(line);
-        if fields.len() < 6 {
+        let fields = parse::SplitFields::<ARP_FIELDS>::new(line);
+        if fields.len() < ARP_FIELDS {
             entries.push(Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: 0,
@@ -52,7 +74,7 @@ pub fn arp() -> impl Iterator<Item = Result<ArpEntry>> {
             continue;
         }
 
-        let ip_str = std::str::from_utf8(fields[0]).unwrap_or("");
+        let ip_str = std::str::from_utf8(fields[COL_IP]).unwrap_or("");
         let ip: Ipv4Addr = match ip_str.parse() {
             Ok(addr) => addr,
             Err(_) => {
@@ -65,12 +87,12 @@ pub fn arp() -> impl Iterator<Item = Result<ArpEntry>> {
             }
         };
 
-        let hw_type = parse::parse_hex_fast(fields[1].get(2..).unwrap_or(fields[1])) as u16;
-        let flags = parse::parse_hex_fast(fields[2].get(2..).unwrap_or(fields[2])) as u16;
+        let hw_type = parse::parse_hex_fast(strip_0x(fields[COL_HW_TYPE])) as u16;
+        let flags = parse::parse_hex_fast(strip_0x(fields[COL_FLAGS])) as u16;
 
-        let mac = parse_mac(fields[3]);
+        let mac = parse_mac(fields[COL_MAC]);
 
-        let device = std::str::from_utf8(fields[5])
+        let device = std::str::from_utf8(fields[COL_DEVICE])
             .unwrap_or("")
             .to_string()
             .into_boxed_str();
@@ -87,24 +109,26 @@ pub fn arp() -> impl Iterator<Item = Result<ArpEntry>> {
     entries.into_iter()
 }
 
-/// Parses a colon-separated MAC address string into `[u8; 6]`.
+/// Parses a colon-separated MAC address string into a [`MAC_LEN`]-byte array.
 ///
-/// Returns `[0; 6]` on parse failure rather than erroring, since
+/// Returns an all-zero MAC on parse failure rather than erroring, since
 /// incomplete ARP entries may have placeholder MAC addresses.
-fn parse_mac(bytes: &[u8]) -> [u8; 6] {
-    if bytes.len() != 17
-        || bytes[2] != b':'
-        || bytes[5] != b':'
-        || bytes[8] != b':'
-        || bytes[11] != b':'
-        || bytes[14] != b':'
-    {
-        return [0; 6];
+fn parse_mac(bytes: &[u8]) -> [u8; MAC_LEN] {
+    if bytes.len() != MAC_STR_LEN {
+        return [0; MAC_LEN];
     }
 
-    let mut mac = [0u8; 6];
-    for i in 0..6 {
-        mac[i] = parse::parse_hex_fast(&bytes[i * 3..i * 3 + 2]) as u8;
+    // Every group but the last is two hex digits followed by `:`.
+    for i in 0..MAC_LEN - 1 {
+        if bytes[i * MAC_GROUP_STRIDE + HEX_PAIR_LEN] != b':' {
+            return [0; MAC_LEN];
+        }
+    }
+
+    let mut mac = [0u8; MAC_LEN];
+    for (i, byte) in mac.iter_mut().enumerate() {
+        let start = i * MAC_GROUP_STRIDE;
+        *byte = parse::parse_hex_fast(&bytes[start..start + HEX_PAIR_LEN]) as u8;
     }
 
     mac

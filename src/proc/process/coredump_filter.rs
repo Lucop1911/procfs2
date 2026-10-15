@@ -44,6 +44,6 @@ impl CoreDumpFilter {
     /// yields a filter with no bits set.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let v = parse::parse_hex_u64(bytes)?;
-        Ok(Self::from_bits_retain(v as u32 & 0x1ff))
+        Ok(Self::from_bits_retain(v as u32 & Self::all().bits()))
     }
 }

@@ -3,6 +3,9 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Minimum fields in a counter row: the `name:` label plus one per CPU.
+const MIN_FIELDS: usize = 2;
+
 /// Per-CPU software interrupt (`softirq`) counters from `/proc/softirqs`.
 ///
 /// Values are cumulative since boot; sample twice and subtract to get
@@ -72,7 +75,7 @@ pub fn softirqs() -> Result<Softirqs> {
                 })?);
             }
         } else {
-            if fields.len() < 2 {
+            if fields.len() < MIN_FIELDS {
                 return Err(Error::Parse {
                     path: path.to_path_buf(),
                     line: line_num + 1,

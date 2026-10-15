@@ -3,6 +3,10 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Fields in a `/proc/mounts` row: spec, mount point, type, options,
+/// frequency, and pass number.
+const MOUNT_FIELDS: usize = 6;
+
 /// A single mount entry from `/proc/mounts`.
 ///
 /// This is the simpler mount format (equivalent to `/proc/self/mounts`),
@@ -42,8 +46,8 @@ pub fn mounts() -> Result<Vec<Mount>> {
     let mut entries = Vec::new();
 
     for line in bytes.split(|&b| b == b'\n').filter(|l| !l.is_empty()) {
-        let fields = parse::SplitFields::<6>::new(line);
-        if fields.len() < 6 {
+        let fields = parse::SplitFields::<MOUNT_FIELDS>::new(line);
+        if fields.len() < MOUNT_FIELDS {
             return Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: 0,

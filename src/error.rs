@@ -1,6 +1,11 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+/// Text `/proc/version` puts before the kernel version.
+const VERSION_PREFIX: &str = "version ";
+/// Dot-separated components expected in a kernel version (`major.minor.patch`).
+const VERSION_PARTS: usize = 3;
+
 /// Errors that can occur when reading or parsing `/proc` and `/sys` entries.
 ///
 /// All variants are designed to be cloneable and comparable for testing purposes.
@@ -209,8 +214,8 @@ impl KernelVersion {
         })?;
 
         let version_start = text
-            .find("version ")
-            .map(|i| i + 8)
+            .find(VERSION_PREFIX)
+            .map(|i| i + VERSION_PREFIX.len())
             .ok_or_else(|| Error::Parse {
                 path: path.to_path_buf(),
                 line: 0,
@@ -225,7 +230,7 @@ impl KernelVersion {
         let version_str = &text[version_start..version_end];
         let parts: Vec<&str> = version_str.split('.').collect();
 
-        if parts.len() < 3 {
+        if parts.len() < VERSION_PARTS {
             return Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: 0,
