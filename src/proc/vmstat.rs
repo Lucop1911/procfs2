@@ -4,6 +4,9 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Fields in a `/proc/vmstat` row: the counter name and its value.
+const STAT_FIELDS: usize = 2;
+
 /// Reads `/proc/vmstat` and returns virtual memory statistics.
 ///
 /// The file holds one `key value` line per counter (e.g.
@@ -22,9 +25,9 @@ pub fn vmstat() -> Result<HashMap<String, u64>> {
         .filter(|l| !l.is_empty())
         .enumerate()
     {
-        let fields = parse::SplitFields::<2>::new(line);
+        let fields = parse::SplitFields::<STAT_FIELDS>::new(line);
 
-        if fields.len() != 2 {
+        if fields.len() != STAT_FIELDS {
             return Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: line_num + 1,

@@ -3,6 +3,11 @@ use std::net::{SocketAddrV4, SocketAddrV6};
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+use super::{
+    COL_INODE, COL_LOCAL, COL_QUEUE, COL_REMOTE, COL_STATE, COL_UID, IPV4_HEX_LEN, IPV6_HEX_LEN,
+    SOCKET_TABLE_FIELDS,
+};
+
 /// TCP connection state as reported in `/proc/net/tcp`.
 ///
 /// Maps the kernel's hex state codes to typed variants.
@@ -117,7 +122,7 @@ fn parse_ipv4(s: &[u8]) -> Result<SocketAddrV4> {
     let addr_hex = &s[..colon];
     let port_hex = &s[colon + 1..];
 
-    if addr_hex.len() != 8 {
+    if addr_hex.len() != IPV4_HEX_LEN {
         return Err(Error::Parse {
             path: std::path::PathBuf::from("<tcp>"),
             line: 0,
@@ -149,7 +154,7 @@ fn parse_ipv6(s: &[u8]) -> Result<SocketAddrV6> {
     let addr_hex = &s[..colon];
     let port_hex = &s[colon + 1..];
 
-    if addr_hex.len() != 32 {
+    if addr_hex.len() != IPV6_HEX_LEN {
         return Err(Error::Parse {
             path: std::path::PathBuf::from("<tcp6>"),
             line: 0,
@@ -184,8 +189,8 @@ fn parse_tcp_file(path: &str, is_v6: bool) -> impl Iterator<Item = Result<TcpEnt
         .filter(|l| !l.is_empty())
         .skip(1)
     {
-        let fields = parse::SplitFields::<12>::new(line);
-        if fields.len() < 12 {
+        let fields = parse::SplitFields::<SOCKET_TABLE_FIELDS>::new(line);
+        if fields.len() < SOCKET_TABLE_FIELDS {
             entries.push(Err(Error::Parse {
                 path: std::path::PathBuf::from(path),
                 line: 0,
@@ -195,7 +200,7 @@ fn parse_tcp_file(path: &str, is_v6: bool) -> impl Iterator<Item = Result<TcpEnt
         }
 
         let local = if is_v6 {
-            match parse_ipv6(fields[1]) {
+            match parse_ipv6(fields[COL_LOCAL]) {
                 Ok(v6) => {
                     if let Some(v4) = v6.ip().to_ipv4_mapped() {
                         SocketAddrV4::new(v4, v6.port())
@@ -215,7 +220,7 @@ fn parse_tcp_file(path: &str, is_v6: bool) -> impl Iterator<Item = Result<TcpEnt
                 }
             }
         } else {
-            match parse_ipv4(fields[1]) {
+            match parse_ipv4(fields[COL_LOCAL]) {
                 Ok(addr) => addr,
                 Err(e) => {
                     entries.push(Err(e));
@@ -225,7 +230,7 @@ fn parse_tcp_file(path: &str, is_v6: bool) -> impl Iterator<Item = Result<TcpEnt
         };
 
         let remote = if is_v6 {
-            match parse_ipv6(fields[2]) {
+            match parse_ipv6(fields[COL_REMOTE]) {
                 Ok(v6) => {
                     if let Some(v4) = v6.ip().to_ipv4_mapped() {
                         SocketAddrV4::new(v4, v6.port())
@@ -244,7 +249,7 @@ fn parse_tcp_file(path: &str, is_v6: bool) -> impl Iterator<Item = Result<TcpEnt
                 }
             }
         } else {
-            match parse_ipv4(fields[2]) {
+            match parse_ipv4(fields[COL_REMOTE]) {
                 Ok(addr) => addr,
                 Err(e) => {
                     entries.push(Err(e));
@@ -253,15 +258,15 @@ fn parse_tcp_file(path: &str, is_v6: bool) -> impl Iterator<Item = Result<TcpEnt
             }
         };
 
-        let state_code = parse::parse_hex_fast(fields[3]) as u32;
+        let state_code = parse::parse_hex_fast(fields[COL_STATE]) as u32;
         let state = TcpState::from_hex(state_code);
 
-        let (tx_queue_raw, rx_queue_raw) = parse::split_at_byte(fields[4], b':');
+        let (tx_queue_raw, rx_queue_raw) = parse::split_at_byte(fields[COL_QUEUE], b':');
         let tx_queue = parse::parse_hex_fast(tx_queue_raw) as u32;
         let rx_queue = parse::parse_hex_fast(rx_queue_raw) as u32;
 
-        let uid = parse::parse_dec_fast(fields[7]) as u32;
-        let inode = parse::parse_dec_fast(fields[9]);
+        let uid = parse::parse_dec_fast(fields[COL_UID]) as u32;
+        let inode = parse::parse_dec_fast(fields[COL_INODE]);
 
         entries.push(Ok(TcpEntry {
             local,
@@ -312,8 +317,8 @@ pub fn parse_tcp6_entries() -> impl Iterator<Item = Result<Tcp6Entry>> {
         .filter(|l| !l.is_empty())
         .skip(1)
     {
-        let fields = parse::SplitFields::<12>::new(line);
-        if fields.len() < 12 {
+        let fields = parse::SplitFields::<SOCKET_TABLE_FIELDS>::new(line);
+        if fields.len() < SOCKET_TABLE_FIELDS {
             entries.push(Err(Error::Parse {
                 path: std::path::PathBuf::from(path),
                 line: 0,
@@ -322,7 +327,7 @@ pub fn parse_tcp6_entries() -> impl Iterator<Item = Result<Tcp6Entry>> {
             continue;
         }
 
-        let local = match parse_ipv6(fields[1]) {
+        let local = match parse_ipv6(fields[COL_LOCAL]) {
             Ok(addr) => addr,
             Err(e) => {
                 entries.push(Err(e));
@@ -330,7 +335,7 @@ pub fn parse_tcp6_entries() -> impl Iterator<Item = Result<Tcp6Entry>> {
             }
         };
 
-        let remote = match parse_ipv6(fields[2]) {
+        let remote = match parse_ipv6(fields[COL_REMOTE]) {
             Ok(addr) => addr,
             Err(e) => {
                 entries.push(Err(e));
@@ -338,15 +343,15 @@ pub fn parse_tcp6_entries() -> impl Iterator<Item = Result<Tcp6Entry>> {
             }
         };
 
-        let state_code = parse::parse_hex_fast(fields[3]) as u32;
+        let state_code = parse::parse_hex_fast(fields[COL_STATE]) as u32;
         let state = TcpState::from_hex(state_code);
 
-        let (tx_queue_raw, rx_queue_raw) = parse::split_at_byte(fields[4], b':');
+        let (tx_queue_raw, rx_queue_raw) = parse::split_at_byte(fields[COL_QUEUE], b':');
         let tx_queue = parse::parse_hex_fast(tx_queue_raw) as u32;
         let rx_queue = parse::parse_hex_fast(rx_queue_raw) as u32;
 
-        let uid = parse::parse_dec_fast(fields[7]) as u32;
-        let inode = parse::parse_dec_fast(fields[9]);
+        let uid = parse::parse_dec_fast(fields[COL_UID]) as u32;
+        let inode = parse::parse_dec_fast(fields[COL_INODE]);
 
         entries.push(Ok(Tcp6Entry {
             local,

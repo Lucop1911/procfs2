@@ -4,6 +4,23 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+use super::IPV4_HEX_LEN;
+
+/// Columns in a `/proc/net/route` row, header excluded.
+const ROUTE_FIELDS: usize = 11;
+// Column indices, in the order the header prints them.
+const COL_IFACE: usize = 0;
+const COL_DESTINATION: usize = 1;
+const COL_GATEWAY: usize = 2;
+const COL_FLAGS: usize = 3;
+const COL_REFCNT: usize = 4;
+const COL_USE: usize = 5;
+const COL_METRIC: usize = 6;
+const COL_MASK: usize = 7;
+const COL_MTU: usize = 8;
+const COL_WINDOW: usize = 9;
+const COL_IRTT: usize = 10;
+
 /// A single routing table entry from `/proc/net/route`.
 ///
 /// The kernel routing table contains one entry per route. The
@@ -56,8 +73,8 @@ pub fn route() -> impl Iterator<Item = Result<RouteEntry>> {
         .filter(|l| !l.is_empty())
         .skip(1)
     {
-        let fields = parse::SplitFields::<11>::new(line);
-        if fields.len() < 11 {
+        let fields = parse::SplitFields::<ROUTE_FIELDS>::new(line);
+        if fields.len() < ROUTE_FIELDS {
             entries.push(Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: 0,
@@ -66,22 +83,22 @@ pub fn route() -> impl Iterator<Item = Result<RouteEntry>> {
             continue;
         }
 
-        let iface = std::str::from_utf8(fields[0])
+        let iface = std::str::from_utf8(fields[COL_IFACE])
             .unwrap_or("")
             .to_string()
             .into_boxed_str();
 
-        let destination = parse_hex_ipv4(fields[1]);
-        let gateway = parse_hex_ipv4(fields[2]);
-        let mask = parse_hex_ipv4(fields[7]);
+        let destination = parse_hex_ipv4(fields[COL_DESTINATION]);
+        let gateway = parse_hex_ipv4(fields[COL_GATEWAY]);
+        let mask = parse_hex_ipv4(fields[COL_MASK]);
 
-        let flags = parse::parse_hex_fast(fields[3]) as u16;
-        let refcnt = parse::parse_dec_fast(fields[4]) as u16;
-        let use_ = parse::parse_dec_fast(fields[5]) as u32;
-        let metric = parse::parse_dec_fast(fields[6]) as u32;
-        let mtu = parse::parse_dec_fast(fields[8]) as u32;
-        let window = parse::parse_dec_fast(fields[9]) as u32;
-        let irtt = parse::parse_dec_fast(fields[10]) as u32;
+        let flags = parse::parse_hex_fast(fields[COL_FLAGS]) as u16;
+        let refcnt = parse::parse_dec_fast(fields[COL_REFCNT]) as u16;
+        let use_ = parse::parse_dec_fast(fields[COL_USE]) as u32;
+        let metric = parse::parse_dec_fast(fields[COL_METRIC]) as u32;
+        let mtu = parse::parse_dec_fast(fields[COL_MTU]) as u32;
+        let window = parse::parse_dec_fast(fields[COL_WINDOW]) as u32;
+        let irtt = parse::parse_dec_fast(fields[COL_IRTT]) as u32;
 
         entries.push(Ok(RouteEntry {
             iface,
@@ -106,7 +123,7 @@ pub fn route() -> impl Iterator<Item = Result<RouteEntry>> {
 /// The kernel stores addresses in reversed byte order: `0100000A`
 /// means `10.0.0.1`.
 fn parse_hex_ipv4(s: &[u8]) -> Ipv4Addr {
-    if s.len() != 8 {
+    if s.len() != IPV4_HEX_LEN {
         return Ipv4Addr::UNSPECIFIED;
     }
 

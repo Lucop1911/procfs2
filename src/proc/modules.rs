@@ -3,6 +3,9 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Fields in a `/proc/modules` row: name, size, refcount, deps, state, address.
+const MODULE_FIELDS: usize = 6;
+
 /// A loaded kernel module from `/proc/modules`.
 ///
 /// Each line lists one currently loaded module with its size,
@@ -39,7 +42,7 @@ pub fn modules() -> Result<Vec<Module>> {
         .filter(|l| !l.is_empty())
         .enumerate()
     {
-        let fields = parse::SplitFields::<6>::new(line);
+        let fields = parse::SplitFields::<MODULE_FIELDS>::new(line);
 
         let name = std::str::from_utf8(fields[0]).map_err(|_| Error::Parse {
             path: path.to_path_buf(),

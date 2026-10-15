@@ -1,6 +1,11 @@
 use crate::error::Result;
 use crate::util::parse;
 
+/// Width of the fixed leading name column in the `/proc/PID/limits` table.
+const LIMIT_NAME_LEN: usize = 25;
+/// Fields following the name column: soft limit, hard limit, and unit.
+const LIMIT_FIELDS: usize = 3;
+
 /// A single resource limit entry.
 ///
 /// Sourced from the `/proc/PID/limits` table. Soft and hard limits
@@ -160,13 +165,13 @@ impl ProcessLimits {
                 continue;
             }
 
-            // The limit name occupies the first 25 characters.
-            let name_end = 25.min(trimmed.len());
+            // The limit name occupies a fixed-width leading column.
+            let name_end = LIMIT_NAME_LEN.min(trimmed.len());
             let name = parse::trim_end(&trimmed[..name_end]);
             let rest = parse::trim_start(&trimmed[name_end..]);
 
-            let fields = parse::SplitFields::<3>::new(rest);
-            if fields.len() < 3 {
+            let fields = parse::SplitFields::<LIMIT_FIELDS>::new(rest);
+            if fields.len() < LIMIT_FIELDS {
                 continue;
             }
 

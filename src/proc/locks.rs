@@ -3,6 +3,10 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Fields in a `/proc/locks` row: ordinal, type, class, access, pid,
+/// `dev:ino`, start, and end.
+const LOCK_FIELDS: usize = 8;
+
 /// The type of a file lock from `/proc/locks`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LockType {
@@ -76,9 +80,9 @@ pub fn locks() -> Result<Vec<Lock>> {
         .filter(|l| !l.is_empty())
         .enumerate()
     {
-        let fields = parse::SplitFields::<8>::new(line);
+        let fields = parse::SplitFields::<LOCK_FIELDS>::new(line);
 
-        if fields.len() < 8 {
+        if fields.len() < LOCK_FIELDS {
             return Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: line_num + 1,

@@ -3,6 +3,19 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Fixed fields before the optional pathname.
+const FIELDS_WITHOUT_PATH: usize = 7;
+/// Maximum fields parsed from one line: the fixed fields plus a pathname.
+const MAX_FIELDS: usize = 8;
+// Trailing fields are located from the end because some kernels insert an
+// extra flags field before the state.
+const OFFSET_INODE: usize = 2;
+const OFFSET_STATE: usize = 3;
+const OFFSET_TYPE: usize = 4;
+const OFFSET_PROTOCOL: usize = 5;
+const OFFSET_REFCOUNT: usize = 6;
+const OFFSET_PATH: usize = 1;
+
 /// A single Unix domain socket entry from `/proc/net/unix`.
 ///
 /// Unix sockets use a different format than TCP/UDP — a space-
@@ -52,11 +65,11 @@ pub fn unix() -> impl Iterator<Item = Result<UnixEntry>> {
         .filter(|l| !l.is_empty())
         .skip(1)
     {
-        let fields = parse::SplitFields::<8>::new(line);
+        let fields = parse::SplitFields::<MAX_FIELDS>::new(line);
 
         // /proc/net/unix has variable field counts. Minimum is 7
         // (without path), 8 with path.
-        if fields.len() < 7 {
+        if fields.len() < FIELDS_WITHOUT_PATH {
             entries.push(Err(Error::Parse {
                 path: path.to_path_buf(),
                 line: 0,
@@ -68,15 +81,15 @@ pub fn unix() -> impl Iterator<Item = Result<UnixEntry>> {
         // Fields: Num, RefCount, Protocol, Type, State, Inode, [Path]
         // Some kernels have an extra flags field between Type and State.
         // We locate fields by position from the end.
-        let inode = parse::parse_dec_fast(fields[fields.len() - 2]);
-        let state = parse::parse_hex_fast(fields[fields.len() - 3]) as u32;
-        let type_ = parse::parse_hex_fast(fields[fields.len() - 4]) as u32;
-        let protocol = parse::parse_hex_fast(fields[fields.len() - 5]) as u32;
-        let ref_count = parse::parse_hex_fast(fields[fields.len() - 6]) as u32;
+        let inode = parse::parse_dec_fast(fields[fields.len() - OFFSET_INODE]);
+        let state = parse::parse_hex_fast(fields[fields.len() - OFFSET_STATE]) as u32;
+        let type_ = parse::parse_hex_fast(fields[fields.len() - OFFSET_TYPE]) as u32;
+        let protocol = parse::parse_hex_fast(fields[fields.len() - OFFSET_PROTOCOL]) as u32;
+        let ref_count = parse::parse_hex_fast(fields[fields.len() - OFFSET_REFCOUNT]) as u32;
         let ino = parse::parse_hex_fast(fields[0]);
 
-        let path_str = if fields.len() > 7 {
-            std::str::from_utf8(fields[fields.len() - 1])
+        let path_str = if fields.len() > FIELDS_WITHOUT_PATH {
+            std::str::from_utf8(fields[fields.len() - OFFSET_PATH])
                 .ok()
                 .map(|s| s.to_string().into_boxed_str())
         } else {

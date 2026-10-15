@@ -3,6 +3,10 @@ use std::path::{Path, PathBuf};
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Widest counters row in a `/proc/net/snmp` section; the header and value
+/// rows are checked against each other rather than against this.
+const MAX_COUNTERS: usize = 32;
+
 /// IPv4 packet statistics from the `Ip` section of `/proc/net/snmp`.
 #[derive(Debug, Default)]
 pub struct IpStats {
@@ -207,8 +211,8 @@ pub fn snmp() -> Result<SnmpInfo> {
             return Err(parse_error(path, "section names do not match"));
         }
 
-        let headers = parse::SplitFields::<32>::new(header_fields);
-        let values = parse::SplitFields::<32>::new(value_fields);
+        let headers = parse::SplitFields::<MAX_COUNTERS>::new(header_fields);
+        let values = parse::SplitFields::<MAX_COUNTERS>::new(value_fields);
         if headers.len() != values.len() {
             return Err(parse_error(path, "header and value counts differ"));
         }

@@ -6,6 +6,11 @@ use crate::error::{Error, Result};
 use crate::util::Bytes;
 use crate::util::parse;
 
+/// Bytes in a MAC address.
+const MAC_LEN: usize = 6;
+/// Radix for the hexadecimal octets of a MAC address.
+const HEX_RADIX: u32 = 16;
+
 bitflags! {
     /// Network interface flags.
     ///
@@ -190,7 +195,7 @@ impl NetInterface {
         let bytes = parse::read_file(&path)?;
         let s = std::str::from_utf8(&bytes).unwrap_or("").trim();
         let parts: Vec<&str> = s.split(':').collect();
-        if parts.len() != 6 {
+        if parts.len() != MAC_LEN {
             return Err(Error::Parse {
                 path,
                 line: 0,
@@ -198,9 +203,9 @@ impl NetInterface {
             });
         }
 
-        let mut mac = [0u8; 6];
+        let mut mac = [0u8; MAC_LEN];
         for (i, part) in parts.iter().enumerate() {
-            mac[i] = u8::from_str_radix(part, 16).map_err(|_| Error::Parse {
+            mac[i] = u8::from_str_radix(part, HEX_RADIX).map_err(|_| Error::Parse {
                 path: path.clone(),
                 line: 0,
                 msg: "invalid hex byte in MAC",

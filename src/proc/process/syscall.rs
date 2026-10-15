@@ -1,6 +1,15 @@
 use crate::error::{Error, Result};
 use crate::util::parse::{SplitFields, parse_dec_i64, parse_hex_u64};
 
+/// Argument registers exposed by `/proc/PID/syscall`.
+const ARG_COUNT: usize = 6;
+/// Index of the first argument register, right after the syscall number.
+const FIRST_ARG: usize = 1;
+/// Fields in a "blocked, not in syscall" line: `nr`, SP, IP.
+const BLOCKED_FIELDS: usize = 3;
+/// Fields in an in-syscall line: `nr`, [`ARG_COUNT`] args, SP, IP.
+const IN_SYSCALL_FIELDS: usize = FIRST_ARG + ARG_COUNT + 2;
+
 /// Current system call state of a process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyscallState {
@@ -30,7 +39,7 @@ pub struct ProcessSyscall {
     ///
     /// Up to 6 arguments are exposed, always stored as 64-bit values
     /// regardless of architecture.
-    pub args: [Option<u64>; 6],
+    pub args: [Option<u64>; ARG_COUNT],
     /// Stack pointer register value.
     pub sp: u64,
     /// Instruction pointer (program counter) register value.
@@ -46,15 +55,15 @@ impl ProcessSyscall {
             return Ok(ProcessSyscall {
                 state: SyscallState::Running,
                 nr: None,
-                args: [None; 6],
+                args: [None; ARG_COUNT],
                 sp: 0,
                 ip: 0,
             });
         }
 
-        let fields = SplitFields::<10>::new(trimmed);
+        let fields = SplitFields::<IN_SYSCALL_FIELDS>::new(trimmed);
 
-        if fields.len() < 3 {
+        if fields.len() < BLOCKED_FIELDS {
             return Err(Error::Parse {
                 path: std::path::PathBuf::from("<syscall>"),
                 line: 1,
@@ -65,25 +74,25 @@ impl ProcessSyscall {
         let nr = parse_dec_i64(fields[0])?;
 
         if nr < 0 {
-            if fields.len() != 3 {
+            if fields.len() != BLOCKED_FIELDS {
                 return Err(Error::Parse {
                     path: std::path::PathBuf::from("<syscall>"),
                     line: 1,
                     msg: "blocked not in syscall expects 3 fields",
                 });
             }
-            let sp = parse_hex_u64(fields[1])?;
-            let ip = parse_hex_u64(fields[2])?;
+            let sp = parse_hex_u64(fields[FIRST_ARG])?;
+            let ip = parse_hex_u64(fields[FIRST_ARG + 1])?;
             return Ok(ProcessSyscall {
                 state: SyscallState::BlockedNotInSyscall,
                 nr: Some(nr),
-                args: [None; 6],
+                args: [None; ARG_COUNT],
                 sp,
                 ip,
             });
         }
 
-        if fields.len() != 9 {
+        if fields.len() != IN_SYSCALL_FIELDS {
             return Err(Error::Parse {
                 path: std::path::PathBuf::from("<syscall>"),
                 line: 1,
@@ -91,12 +100,12 @@ impl ProcessSyscall {
             });
         }
 
-        let mut args: [Option<u64>; 6] = [None, None, None, None, None, None];
-        for i in 0..6 {
-            args[i] = Some(parse_hex_u64(fields[1 + i])?);
+        let mut args: [Option<u64>; ARG_COUNT] = [None; ARG_COUNT];
+        for (i, arg) in args.iter_mut().enumerate() {
+            *arg = Some(parse_hex_u64(fields[FIRST_ARG + i])?);
         }
-        let sp = parse_hex_u64(fields[7])?;
-        let ip = parse_hex_u64(fields[8])?;
+        let sp = parse_hex_u64(fields[FIRST_ARG + ARG_COUNT])?;
+        let ip = parse_hex_u64(fields[FIRST_ARG + ARG_COUNT + 1])?;
 
         Ok(ProcessSyscall {
             state: SyscallState::InSyscall,

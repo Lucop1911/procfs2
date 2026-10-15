@@ -28,6 +28,11 @@ use std::sync::{Arc, Mutex};
 
 use crate::error::{Error, Result};
 
+/// Size of the buffer used for one `read(2)` of inotify events.
+const EVENT_BUF_LEN: usize = 4096;
+/// `poll(2)` timeout meaning "block until an event arrives".
+const POLL_TIMEOUT_MS: libc::c_int = -1;
+
 /// Inotify-based file system watcher.
 ///
 /// Watches files and directories for changes using Linux's inotify API.
@@ -149,7 +154,7 @@ impl Watcher {
                         revents: 0,
                     };
 
-                    let ret = unsafe { libc::poll(&mut pollfd, 1, -1) };
+                    let ret = unsafe { libc::poll(&mut pollfd, 1, POLL_TIMEOUT_MS) };
 
                     if ret < 0 {
                         return Err(Error::Io {
@@ -171,7 +176,7 @@ impl Watcher {
     /// Returns `Error::Io` if reading fails.
     pub fn try_next_event(&self) -> Result<Option<WatchEvent>> {
         // Buffer for inotify events
-        let mut buf = [0u8; 4096];
+        let mut buf = [0u8; EVENT_BUF_LEN];
 
         // Read from the non-blocking fd
         let n = unsafe { libc::read(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len()) };

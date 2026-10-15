@@ -3,6 +3,8 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+use super::INDENT_WIDTH;
+
 /// A single I/O port region from `/proc/ioports`.
 ///
 /// Each line maps a port address range to a description (e.g.
@@ -40,7 +42,7 @@ pub fn ioports() -> Result<Vec<IoPort>> {
         .enumerate()
     {
         let trimmed = parse::trim_start(line);
-        let depth = (line.len() - trimmed.len()) / 2;
+        let depth = (line.len() - trimmed.len()) / INDENT_WIDTH;
 
         let (range, name_bytes) = parse::split_at_byte(trimmed, b':');
         if name_bytes.is_empty() {

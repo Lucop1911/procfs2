@@ -3,6 +3,8 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+use super::INDENT_WIDTH;
+
 /// A single physical memory region from `/proc/iomem`.
 ///
 /// Each line in the file maps a physical address range to a
@@ -40,7 +42,7 @@ pub fn iomem() -> Result<Vec<IoMem>> {
         .enumerate()
     {
         let trimmed = parse::trim_start(line);
-        let depth = (line.len() - trimmed.len()) / 2;
+        let depth = (line.len() - trimmed.len()) / INDENT_WIDTH;
 
         let (range, name_bytes) = parse::split_at_byte(trimmed, b':');
         if name_bytes.is_empty() {

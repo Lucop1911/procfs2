@@ -3,6 +3,15 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Fixed leading fields in a free-pages row whose labels are split on
+/// commas: `Node <id>, zone <name>, type <name>`.
+const FREE_PREFIX: usize = 6;
+/// Fixed leading fields in a blocks row: `Node <id>, zone <name>`, i.e.
+/// [`FREE_PREFIX`] minus the trailing migrate-type pair.
+const BLOCKS_PREFIX: usize = 4;
+/// Maximum fields parsed from one row.
+const MAX_FIELDS: usize = 32;
+
 /// Buddy free pages grouped by migrate type, from `/proc/pagetypeinfo`.
 ///
 /// `/proc/buddyinfo` aggregates free chunks into per-zone lists; this
@@ -149,11 +158,11 @@ pub fn pagetypeinfo() -> Result<PageTypeInfo> {
             continue;
         }
 
-        let fields = parse::SplitFields::<32>::new(line);
+        let fields = parse::SplitFields::<MAX_FIELDS>::new(line);
 
         match section {
             Some(Section::Free) => {
-                if fields.len() < 7 {
+                if fields.len() < FREE_PREFIX + 1 {
                     return Err(Error::Parse {
                         path: path.to_path_buf(),
                         line: line_num + 1,
@@ -177,8 +186,8 @@ pub fn pagetypeinfo() -> Result<PageTypeInfo> {
                     line: line_num + 1,
                     msg: "invalid migrate type",
                 })?;
-                let mut orders = Vec::with_capacity(fields.len() - 6);
-                for field in &fields[6..] {
+                let mut orders = Vec::with_capacity(fields.len() - FREE_PREFIX);
+                for field in &fields[FREE_PREFIX..] {
                     let field = if field.first() == Some(&b'>') {
                         &field[1..]
                     } else {
@@ -198,7 +207,7 @@ pub fn pagetypeinfo() -> Result<PageTypeInfo> {
                 });
             }
             Some(Section::Blocks) => {
-                if fields.len() < 5 {
+                if fields.len() < BLOCKS_PREFIX + 1 {
                     return Err(Error::Parse {
                         path: path.to_path_buf(),
                         line: line_num + 1,
@@ -217,8 +226,8 @@ pub fn pagetypeinfo() -> Result<PageTypeInfo> {
                     line: line_num + 1,
                     msg: "invalid zone",
                 })?;
-                let mut types = Vec::with_capacity(fields.len() - 4);
-                for field in &fields[4..] {
+                let mut types = Vec::with_capacity(fields.len() - BLOCKS_PREFIX);
+                for field in &fields[BLOCKS_PREFIX..] {
                     types.push(parse::parse_dec_u64(field).map_err(|_| Error::Parse {
                         path: path.to_path_buf(),
                         line: line_num + 1,

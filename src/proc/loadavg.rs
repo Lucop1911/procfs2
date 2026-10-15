@@ -3,6 +3,13 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Fields in a `/proc/loadavg` row: the three averages, `load/run/total`,
+/// and the last spawned pid.
+const MAX_FIELDS: usize = 5;
+/// The last pid was added later than the other fields, so tolerate its
+/// absence on older systems.
+const MIN_FIELDS: usize = 4;
+
 /// System load averages.
 ///
 /// Sourced from `/proc/loadavg`. The three load average values are
@@ -29,9 +36,9 @@ pub fn loadavg() -> Result<LoadAvg> {
     let path = Path::new("/proc/loadavg");
     let bytes = parse::read_file(path)?;
 
-    let fields = parse::SplitFields::<5>::new(&bytes);
+    let fields = parse::SplitFields::<MAX_FIELDS>::new(&bytes);
 
-    if fields.len() < 4 {
+    if fields.len() < MIN_FIELDS {
         return Err(Error::Parse {
             path: path.to_path_buf(),
             line: 1,

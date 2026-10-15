@@ -4,6 +4,11 @@ use crate::error::{Error, Result};
 use crate::util::Jiffies;
 use crate::util::parse;
 
+/// Prefix shared by the aggregate and per-CPU counter lines (`cpu`, `cpu0`, ...).
+const CPU_PREFIX: &[u8] = b"cpu";
+/// Maximum fields parsed from a line; comfortably covers a `cpu` row.
+const MAX_FIELDS: usize = 16;
+
 /// Aggregate CPU time counters for a single logical CPU or the
 /// system-wide total.
 ///
@@ -112,17 +117,17 @@ pub fn stat() -> Result<Stat> {
             continue;
         }
 
-        let fields = parse::SplitFields::<16>::new(line);
+        let fields = parse::SplitFields::<MAX_FIELDS>::new(line);
         if fields.is_empty() {
             continue;
         }
 
         let key = fields[0];
 
-        if key == b"cpu" {
+        if key == CPU_PREFIX {
             cpu_total = Some(parse_cpu_times(&fields[1..])?);
-        } else if key.starts_with(b"cpu") {
-            let id_str = &key[3..];
+        } else if key.starts_with(CPU_PREFIX) {
+            let id_str = &key[CPU_PREFIX.len()..];
             let id = parse::parse_dec_u32_fast(id_str).map_err(|_| Error::Parse {
                 path: path.to_path_buf(),
                 line: line_num + 1,

@@ -1,6 +1,9 @@
 use crate::error::Result;
 use crate::util::parse::{SplitFields, parse_dec_u64};
 
+/// Fields in a `/proc/PID/statm` line: `size resident shared text lib data dt`.
+const STATM_FIELDS: usize = 7;
+
 /// Memory usage of a process in pages.
 ///
 /// Parsed from `/proc/PID/statm`. A single line of seven
@@ -53,9 +56,9 @@ impl Statm {
     ///
     /// Expects exactly seven space-separated decimal page counts.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let fields = SplitFields::<7>::new(bytes);
+        let fields = SplitFields::<STATM_FIELDS>::new(bytes);
 
-        if fields.len() < 7 {
+        if fields.len() < STATM_FIELDS {
             return Err(crate::error::Error::Parse {
                 path: std::path::PathBuf::from("<statm>"),
                 line: 1,

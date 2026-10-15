@@ -2,12 +2,15 @@ use std::{
     ffi::OsStr,
     fs::File,
     io::{Read, Seek, SeekFrom},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
-use super::Auxv;
 use crate::error::{Error, Result};
-use crate::util::parse::read_file;
+
+/// One pagemap entry: a native-endian `u64` per virtual page.
+const ENTRY_SIZE: usize = std::mem::size_of::<u64>();
+// `u64::from_ne_bytes` below reads exactly eight bytes.
+const _: () = assert!(ENTRY_SIZE == 8);
 
 /// A single entry from `/proc/PID/pagemap`.
 ///
@@ -72,17 +75,16 @@ impl PageMapEntry {
 /// Parses the pagemap of a process for a virtual address range.
 ///
 /// Returns one [`PageMapEntry`] per page intersecting `start..end`.
-/// The page size is taken from the process's auxiliary vector. This
-/// is the I/O counterpart to [`parse`], which handles the bytes once
-/// they are in memory.
+/// `page_size` comes from the process's `AT_PAGESZ` entry, which the
+/// caller is expected to have already read. This is the I/O
+/// counterpart to [`parse`], which handles the bytes once they are in
+/// memory.
 pub(super) fn read(
     path: &OsStr,
-    auxv_path: &OsStr,
+    page_size: u64,
     start: u64,
     end: u64,
 ) -> Result<Vec<PageMapEntry>> {
-    let bytes = read_file(Path::new(auxv_path))?;
-    let page_size = Auxv::from_bytes(&bytes)?.page_size();
     let first = start / page_size;
     let count = end.div_ceil(page_size).saturating_sub(first);
 
@@ -101,7 +103,7 @@ pub(super) fn read(
         }
     })?;
 
-    file.seek(SeekFrom::Start(first * 8))
+    file.seek(SeekFrom::Start(first * ENTRY_SIZE as u64))
         .map_err(|e| Error::Io {
             path: Some(PathBuf::from(&path)),
             error: e,
@@ -109,7 +111,7 @@ pub(super) fn read(
 
     // Read up to the end of the address space. The kernel stops at
     // the last page it can map, so an early EOF is not an error.
-    let mut buf = vec![0u8; (count * 8) as usize];
+    let mut buf = vec![0u8; (count * ENTRY_SIZE as u64) as usize];
     let mut filled = 0;
     while filled < buf.len() {
         match file.read(&mut buf[filled..]) {
@@ -136,16 +138,16 @@ pub(super) fn read(
 /// they want first; entry index `i` corresponds to the page at
 /// address `i * page_size`. Unmapped holes read back as zero.
 pub(super) fn parse(bytes: &[u8]) -> Result<Vec<PageMapEntry>> {
-    if bytes.len() % 8 != 0 {
+    if bytes.len() % ENTRY_SIZE != 0 {
         return Err(Error::Parse {
             path: PathBuf::from("<pagemap>"),
             line: 0,
-            msg: "size is not a multiple of 8 bytes",
+            msg: "size is not a multiple of the pagemap entry size",
         });
     }
 
     Ok(bytes
-        .chunks_exact(8)
+        .chunks_exact(ENTRY_SIZE)
         .map(|c| {
             let raw = u64::from_ne_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]);
             PageMapEntry::from_raw(raw)

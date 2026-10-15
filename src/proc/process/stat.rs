@@ -1,6 +1,9 @@
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Numeric fields parsed from `/proc/PID/stat`, from `state` through `rss`.
+const MIN_FIELDS: usize = 22;
+
 /// Scheduling and state information for a process.
 ///
 /// Parsed from `/proc/PID/stat`, a single line of space-separated
@@ -103,7 +106,8 @@ impl ProcessStat {
                     msg: "missing space after pid",
                 })?;
 
-        let comm_start = space_after_pid + 2;
+        // `pid (comm)`: the command name starts after the `" ("`.
+        let comm_start = space_after_pid + b" (".len();
         let comm = &bytes[comm_start..last_paren];
         let comm_str = std::str::from_utf8(comm).map_err(|_| Error::Parse {
             path: std::path::PathBuf::from("<stat>"),
@@ -111,10 +115,11 @@ impl ProcessStat {
             msg: "invalid utf8 in comm",
         })?;
 
-        let rest = &bytes[last_paren + 2..];
-        let fields = parse::SplitFields::<32>::new(rest);
+        // The numeric fields begin after the `") "` that closes `comm`.
+        let rest = &bytes[last_paren + b") ".len()..];
+        let fields = parse::SplitFields::<MIN_FIELDS>::new(rest);
 
-        if fields.len() < 22 {
+        if fields.len() < MIN_FIELDS {
             return Err(Error::Parse {
                 path: std::path::PathBuf::from("<stat>"),
                 line: 1,

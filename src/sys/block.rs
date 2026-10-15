@@ -4,6 +4,15 @@ use crate::error::{Error, Result};
 use crate::util::parse;
 use crate::util::{Bytes, Milliseconds};
 
+/// Sector size the kernel reports block sizes in.
+const SECTOR_SIZE: u64 = 512;
+/// Fallback for `queue/nr_requests` when the attribute cannot be read.
+const DEFAULT_NR_REQUESTS: u32 = 128;
+/// Fallback for `queue/read_ahead_kb` when the attribute cannot be read.
+const DEFAULT_READ_AHEAD_KB: u32 = 256;
+/// Fields in `/sys/block/<name>/stat`.
+const STAT_FIELDS: usize = 11;
+
 /// Statistics for a block device from `/sys/block/<name>/stat`.
 ///
 /// Mirrors the format of `/proc/diskstats` — 11 space-separated
@@ -106,9 +115,9 @@ impl BlockDevice {
     pub fn stat(&self) -> Result<BlockStat> {
         let path = self.base.join("stat");
         let bytes = parse::read_file(&path)?;
-        let fields = parse::SplitFields::<11>::new(&bytes);
+        let fields = parse::SplitFields::<STAT_FIELDS>::new(&bytes);
 
-        if fields.len() < 11 {
+        if fields.len() < STAT_FIELDS {
             return Err(Error::Parse {
                 path,
                 line: 0,
@@ -139,7 +148,7 @@ impl BlockDevice {
         let path = self.base.join("size");
         let bytes = parse::read_file(&path)?;
         let sectors = parse::parse_dec_u64(&bytes)?;
-        Ok(Bytes(sectors * 512))
+        Ok(Bytes(sectors * SECTOR_SIZE))
     }
 
     /// Reads queue parameters from `/sys/block/<name>/queue/`.
@@ -167,8 +176,8 @@ impl BlockDevice {
         let nr_requests = {
             let path = queue.join("nr_requests");
             match parse::read_file(&path) {
-                Ok(bytes) => parse::parse_dec_u32(&bytes).unwrap_or(128),
-                Err(_) => 128,
+                Ok(bytes) => parse::parse_dec_u32(&bytes).unwrap_or(DEFAULT_NR_REQUESTS),
+                Err(_) => DEFAULT_NR_REQUESTS,
             }
         };
 
@@ -183,8 +192,8 @@ impl BlockDevice {
         let read_ahead_kb = {
             let path = queue.join("read_ahead_kb");
             match parse::read_file(&path) {
-                Ok(bytes) => parse::parse_dec_u32(&bytes).unwrap_or(256),
-                Err(_) => 256,
+                Ok(bytes) => parse::parse_dec_u32(&bytes).unwrap_or(DEFAULT_READ_AHEAD_KB),
+                Err(_) => DEFAULT_READ_AHEAD_KB,
             }
         };
 

@@ -41,6 +41,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Prefix every per-process path starts with.
+const PROC_PREFIX: &[u8] = b"/proc/";
+/// Decimal digits needed for the largest `u32` (`4294967295`).
+const U32_DIGITS: usize = 10;
+/// Longest entry name, including its leading slash (`/coredump_filter`).
+/// Keeps `PROC_PATH_BUF` in sync with the suffixes passed to [`proc_path`].
+const MAX_SUFFIX_LEN: usize = 16;
+/// Scratch capacity for the longest path built by [`proc_path`].
+const PROC_PATH_BUF: usize = PROC_PREFIX.len() + U32_DIGITS + MAX_SUFFIX_LEN;
+
 /// A handle to a running process, identified by its PID.
 ///
 /// This struct is the entry point for all per-process information
@@ -66,10 +76,7 @@ impl Process {
     /// means either the PID is invalid or the process has already
     /// terminated.
     pub fn new(pid: u32) -> Result<Self> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, pid, "");
-
-        if Path::new(path).is_dir() {
+        if with_proc_path(pid, "", |path| path.is_dir()) {
             Ok(Process { pid })
         } else {
             Err(Error::ProcessGone(pid))
@@ -156,9 +163,7 @@ impl Process {
     /// data. The `comm` field is limited to 15 characters by the
     /// kernel and may be truncated.
     pub fn stat(&self) -> Result<ProcessStat> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/stat");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/stat")?;
         ProcessStat::from_bytes(&bytes)
     }
 
@@ -168,9 +173,7 @@ impl Process {
     /// `/proc/PID/stat`, including UIDs, GIDs, voluntary context
     /// switches, and optional memory peaks.
     pub fn status(&self) -> Result<ProcessStatus> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/status");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/status")?;
         ProcessStatus::from_bytes(&bytes)
     }
 
@@ -179,9 +182,7 @@ impl Process {
     /// Arguments are null-delimited in the kernel file. Returns an
     /// empty vector for kernel threads, which have no cmdline.
     pub fn cmdline(&self) -> Result<Vec<std::ffi::OsString>> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/cmdline");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/cmdline")?;
 
         if bytes.is_empty() {
             return Ok(Vec::new());
@@ -204,9 +205,7 @@ impl Process {
     pub fn environ(
         &self,
     ) -> Result<std::collections::HashMap<std::ffi::OsString, std::ffi::OsString>> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/environ");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/environ")?;
 
         let mut map = std::collections::HashMap::new();
 
@@ -226,17 +225,17 @@ impl Process {
     /// Returns [`Error::PermissionDenied`] if the process is owned
     /// by another user and the caller lacks `CAP_SYS_PTRACE`.
     pub fn exe(&self) -> Result<std::path::PathBuf> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/exe");
-        std::fs::read_link(path).map_err(|e| {
-            if e.kind() == std::io::ErrorKind::PermissionDenied {
-                Error::PermissionDenied(PathBuf::from(&path))
-            } else {
-                Error::Io {
-                    path: Some(PathBuf::from(&path)),
-                    error: e,
+        with_proc_path(self.pid, "/exe", |path| {
+            std::fs::read_link(path).map_err(|e| {
+                if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    Error::PermissionDenied(path.to_path_buf())
+                } else {
+                    Error::Io {
+                        path: Some(path.to_path_buf()),
+                        error: e,
+                    }
                 }
-            }
+            })
         })
     }
 
@@ -245,17 +244,17 @@ impl Process {
     /// Returns [`Error::PermissionDenied`] under the same conditions
     /// as [`Process::exe`].
     pub fn cwd(&self) -> Result<std::path::PathBuf> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/cwd");
-        std::fs::read_link(path).map_err(|e| {
-            if e.kind() == std::io::ErrorKind::PermissionDenied {
-                Error::PermissionDenied(PathBuf::from(&path))
-            } else {
-                Error::Io {
-                    path: Some(PathBuf::from(&path)),
-                    error: e,
+        with_proc_path(self.pid, "/cwd", |path| {
+            std::fs::read_link(path).map_err(|e| {
+                if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    Error::PermissionDenied(path.to_path_buf())
+                } else {
+                    Error::Io {
+                        path: Some(path.to_path_buf()),
+                        error: e,
+                    }
                 }
-            }
+            })
         })
     }
 
@@ -265,9 +264,7 @@ impl Process {
     /// permissions (read/write/exec/shared/private), offset, device,
     /// inode, and optional backing pathname.
     pub fn maps(&self) -> Result<Vec<MemoryMap>> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/maps");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/maps")?;
         MemoryMap::parse_all(&bytes)
     }
 
@@ -277,9 +274,7 @@ impl Process {
     /// private clean/dirty, referenced, anonymous, and swap counts.
     /// This is significantly larger than `maps` and slower to parse.
     pub fn smaps(&self) -> Result<Vec<MemoryMapDetail>> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/smaps");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/smaps")?;
         MemoryMapDetail::parse_all(&bytes)
     }
 
@@ -293,9 +288,7 @@ impl Process {
     /// [`Error::UnsupportedKernel`].
     pub fn smaps_rollup(&self) -> Result<SmapsRollup> {
         KernelVersion::current()?.require(4, 14)?;
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/smaps_rollup");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/smaps_rollup")?;
         SmapsRollup::from_bytes(&bytes)
     }
 
@@ -314,9 +307,7 @@ impl Process {
     /// `write_bytes`). The difference between the two pairs reveals
     /// page cache activity.
     pub fn io(&self) -> Result<ProcessIo> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/io");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/io")?;
         ProcessIo::from_bytes(&bytes)
     }
 
@@ -326,9 +317,7 @@ impl Process {
     /// with soft/hard values and units. `unlimited` is represented
     /// as `None`.
     pub fn limits(&self) -> Result<ProcessLimits> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/limits");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/limits")?;
         ProcessLimits::from_bytes(&bytes)
     }
 
@@ -348,9 +337,7 @@ impl Process {
     /// Returns [`Error::PermissionDenied`] if the caller lacks
     /// `PTRACE_MODE_ATTACH_FSCREDS` permission.
     pub fn syscall(&self) -> Result<ProcessSyscall> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/syscall");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/syscall")?;
         ProcessSyscall::from_bytes(&bytes)
     }
 
@@ -359,9 +346,7 @@ impl Process {
     /// A richer format than `/proc/mounts` with mount IDs, parent
     /// IDs, optional fields, and separate superblock options.
     pub fn mountinfo(&self) -> Result<Vec<MountInfo>> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/mountinfo");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/mountinfo")?;
         MountInfo::from_bytes(&bytes)
     }
 
@@ -371,9 +356,7 @@ impl Process {
     /// cgroup path. Empty controller lists indicate the process is
     /// in the root cgroup for that hierarchy.
     pub fn cgroup(&self) -> Result<Vec<CgroupEntry>> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/cgroup");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/cgroup")?;
         CgroupEntry::from_bytes(&bytes)
     }
 
@@ -383,9 +366,9 @@ impl Process {
     /// and its target inode is extracted. Missing namespaces (e.g.
     /// `time` on older kernels) are returned as `None`.
     pub fn namespaces(&self) -> Result<Namespaces> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/ns");
-        Namespaces::from_dir(path)
+        with_proc_path(self.pid, "/ns", |path| {
+            Namespaces::from_dir(path.as_os_str())
+        })
     }
 
     /// Iterates over the threads of this process.
@@ -404,9 +387,7 @@ impl Process {
     /// passes to the dynamic linker, including the page size, ELF
     /// header pointers, and random bytes.
     pub fn auxv(&self) -> Result<Auxv> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/auxv");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/auxv")?;
         Auxv::from_bytes(&bytes)
     }
 
@@ -429,11 +410,10 @@ impl Process {
     /// the `[vsyscall]` mapping on x86_64) yield only the entries the
     /// kernel can report.
     pub fn pagemap(&self, start: u64, end: u64) -> Result<Vec<PageMapEntry>> {
-        let mut buf1 = [0u8; 32];
-        let mut buf2 = [0u8; 32];
-        let path = proc_path(&mut buf1, self.pid, "/pagemap");
-        let auxv_path = proc_path(&mut buf2, self.pid, "/auxv");
-        pagemap::read(path, auxv_path, start, end)
+        let page_size = self.auxv()?.page_size();
+        with_proc_path(self.pid, "/pagemap", |path| {
+            pagemap::read(path.as_os_str(), page_size, start, end)
+        })
     }
 
     /// Reads `/proc/PID/statm` and returns the memory summary.
@@ -442,9 +422,7 @@ impl Process {
     /// (file-backed), text, libraries, data, and dirty pages. All
     /// values are in pages, not bytes.
     pub fn statm(&self) -> Result<Statm> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/statm");
-        let bytes = parse::read_file(Path::new(&path))?;
+        let bytes = read_proc(self.pid, "/statm")?;
         Statm::from_bytes(&bytes)
     }
 
@@ -459,9 +437,7 @@ impl Process {
     /// in the kernel (`CONFIG_AUDITSYSCALL`); kernels built without it
     /// yield `None` rather than an error.
     pub fn loginuid(&self) -> Result<Option<u32>> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/loginuid");
-        let bytes = match parse::read_file(Path::new(&path)) {
+        let bytes = match read_proc(self.pid, "/loginuid") {
             Ok(bytes) => bytes,
             Err(Error::Io { error, .. }) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(None);
@@ -484,9 +460,7 @@ impl Process {
     /// in the kernel (`CONFIG_AUDITSYSCALL`); kernels built without it
     /// yield `None` rather than an error.
     pub fn sessionid(&self) -> Result<Option<u32>> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/sessionid");
-        let bytes = match parse::read_file(Path::new(&path)) {
+        let bytes = match read_proc(self.pid, "/sessionid") {
             Ok(bytes) => bytes,
             Err(Error::Io { error, .. }) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(None);
@@ -508,9 +482,7 @@ impl Process {
     /// `None` rather than an error. Kernel threads have no address space
     /// and report an empty filter.
     pub fn coredump_filter(&self) -> Result<Option<CoreDumpFilter>> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/coredump_filter");
-        let bytes = match parse::read_file(Path::new(path)) {
+        let bytes = match read_proc(self.pid, "/coredump_filter") {
             Ok(bytes) => bytes,
             Err(Error::Io { error, .. }) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(None);
@@ -529,9 +501,7 @@ impl Process {
     /// `oom_score_adj` value, which can push it into the low thousands.
     /// It fits comfortably in a `u16`.
     pub fn oom_score(&self) -> Result<u16> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/oom_score");
-        let bytes = parse::read_file(Path::new(path))?;
+        let bytes = read_proc(self.pid, "/oom_score")?;
 
         parse::parse_dec_u32(&bytes).map(|v| v as u16)
     }
@@ -544,9 +514,7 @@ impl Process {
     /// chosen first). The kernel inherits it across `fork()` but not
     /// `exec()`. It fits comfortably in an `i16`.
     pub fn oom_score_adj(&self) -> Result<i16> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/oom_score_adj");
-        let bytes = parse::read_file(Path::new(path))?;
+        let bytes = read_proc(self.pid, "/oom_score_adj")?;
 
         parse::parse_dec_i64(&bytes).map(|v| v as i16)
     }
@@ -560,40 +528,65 @@ impl Process {
     /// that looks stuck, but the value is a snapshot and may be out of
     /// date by the time it is read.
     pub fn wchan(&self) -> Result<Wchan> {
-        let mut buf = [0u8; 32];
-        let path = proc_path(&mut buf, self.pid, "/wchan");
-        let bytes = parse::read_file(Path::new(path))?;
+        let bytes = read_proc(self.pid, "/wchan")?;
 
         Wchan::from_bytes(&bytes)
     }
 }
 
+// Writes `n` as decimal ASCII at the start of `buf` and returns the number
+// of bytes written. The caller must supply at least 10 bytes, the most a
+// `u32` can need (`4294967295`). Avoids `format!` so building a `/proc`
+// path stays allocation-free.
 fn write_u32(mut n: u32, buf: &mut [u8]) -> usize {
     if n == 0 {
         buf[0] = b'0';
         return 1;
     }
-    let mut tmp = [0u8; 10];
-    let mut i = 10;
+    // Emit digits least significant first, then copy the used tail of `tmp`
+    // to the front of `buf`. Zero is handled above so `n > 0` here.
+    let mut tmp = [0u8; U32_DIGITS];
+    let mut i = U32_DIGITS;
     while n > 0 {
         i -= 1;
         tmp[i] = b'0' + (n % 10) as u8;
         n /= 10;
     }
-    let len = 10 - i;
+    let len = U32_DIGITS - i;
     buf[..len].copy_from_slice(&tmp[i..]);
     len
 }
 
-/// Writes "/proc/{pid}{suffix}" into `buf` and returns it as a `&str`.
+/// Writes "/proc/{pid}{suffix}" into `buf` and returns it as a `OsStr`.
 /// `suffix` should include its own leading slash, e.g. "/stat", or be "" for the bare pid dir.
-pub(crate) fn proc_path<'a>(buf: &'a mut [u8; 32], pid: u32, suffix: &str) -> &'a OsStr {
+pub(crate) fn proc_path<'a>(buf: &'a mut [u8; PROC_PATH_BUF], pid: u32, suffix: &str) -> &'a OsStr {
+    // Writes the path in place so a per-call `PathBuf` allocation is not
+    // needed; `buf` already has room for the longest path (see
+    // `PROC_PATH_BUF`). The caller must keep `suffix` within
+    // `MAX_SUFFIX_LEN`.
     let mut len = 0;
-    buf[..6].copy_from_slice(b"/proc/");
-    len += 6;
+    buf[..PROC_PREFIX.len()].copy_from_slice(PROC_PREFIX);
+    len += PROC_PREFIX.len();
     len += write_u32(pid, &mut buf[len..]);
     let s = suffix.as_bytes();
     buf[len..len + s.len()].copy_from_slice(s);
     len += s.len();
     OsStr::from_bytes(&buf[..len])
+}
+
+/// Assembles `/proc/<pid><suffix>` on the stack and passes it to `f`.
+///
+/// The path only lives for the duration of the call, so callers that
+/// need to keep it must copy it into a `PathBuf`. `suffix` must include
+/// its own leading slash (e.g. `"/stat"`); use `""` for the bare pid
+/// directory.
+pub(crate) fn with_proc_path<T>(pid: u32, suffix: &str, use_path: impl FnOnce(&Path) -> T) -> T {
+    let mut buf = [0u8; PROC_PATH_BUF];
+    let path = proc_path(&mut buf, pid, suffix);
+    use_path(Path::new(path))
+}
+
+/// Reads a whole `/proc/<pid><suffix>` file into a fresh buffer.
+pub(crate) fn read_proc(pid: u32, suffix: &str) -> Result<Vec<u8>> {
+    with_proc_path(pid, suffix, parse::read_file)
 }

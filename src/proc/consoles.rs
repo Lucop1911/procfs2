@@ -5,6 +5,9 @@ use bitflags::bitflags;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Capability letters (`R`, `W`, `U`) in each `/proc/consoles` line.
+const CAPS_LEN: usize = 3;
+
 bitflags! {
     /// Console capabilities and driver-state flags from `/proc/consoles`.
     ///
@@ -95,15 +98,15 @@ fn parse_line(line: &[u8], path: &Path, line_num: usize) -> Result<Console> {
 
     // Everything before '(' is `<name (20 wide)><3 capability letters> `.
     let head = parse::trim_end(&line[..open]);
-    if head.len() < 3 {
+    if head.len() < CAPS_LEN {
         return Err(Error::Parse {
             path: path.to_path_buf(),
             line: line_num,
             msg: "console line too short",
         });
     }
-    let caps = &head[head.len() - 3..];
-    let name = parse::trim_end(&head[..head.len() - 3]);
+    let caps = &head[head.len() - CAPS_LEN..];
+    let name = parse::trim_end(&head[..head.len() - CAPS_LEN]);
 
     let name = std::str::from_utf8(name).map_err(|_| Error::Parse {
         path: path.to_path_buf(),

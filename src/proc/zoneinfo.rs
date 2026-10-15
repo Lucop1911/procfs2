@@ -4,6 +4,10 @@ use std::path::Path;
 use crate::error::{Error, Result};
 use crate::util::parse;
 
+/// Widest `/proc/zoneinfo` row we need to split; node and zone lines are
+/// short and the numeric columns are appended after them.
+const MAX_FIELDS: usize = 8;
+
 /// Watermark and size information for one memory zone.
 ///
 /// Values are in units of memory pages. Fields absent on a given
@@ -106,7 +110,7 @@ pub fn zoneinfo() -> Result<Vec<ZoneInfo>> {
         .filter(|l| !l.is_empty())
         .enumerate()
     {
-        let fields = parse::SplitFields::<8>::new(line);
+        let fields = parse::SplitFields::<MAX_FIELDS>::new(line);
         let first = match fields.first() {
             Some(&f) => f,
             None => continue,

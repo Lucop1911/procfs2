@@ -503,6 +503,15 @@ pub(crate) fn decode_ipv4_fast(s: &[u8]) -> [u8; 4] {
     ]
 }
 
+/// Hex digits in one byte.
+const HEX_DIGITS: usize = 2;
+/// 32-bit words in an IPv6 address.
+const IPV6_WORDS: usize = 4;
+/// Bytes in each 32-bit word.
+const IPV6_WORD_BYTES: usize = 4;
+/// Hex digits in each 32-bit word.
+const IPV6_WORD_HEX: usize = IPV6_WORD_BYTES * HEX_DIGITS;
+
 /// Decodes a little-endian hex IPv6 address into bytes.
 ///
 /// The kernel stores the 128-bit address as four little-endian 32-bit
@@ -510,16 +519,15 @@ pub(crate) fn decode_ipv4_fast(s: &[u8]) -> [u8; 4] {
 /// straight into `Ipv6Addr::from`. The caller is expected to have already
 /// checked that the slice is exactly 32 hex digits.
 #[inline]
-pub(crate) fn decode_ipv6_fast(s: &[u8]) -> [u8; 16] {
-    let mut out = [0; 16];
-    let mut i = 0;
-    while i < 4 {
-        let offset = i * 8;
-        out[i * 4] = hex_byte(s[offset + 6], s[offset + 7]);
-        out[i * 4 + 1] = hex_byte(s[offset + 4], s[offset + 5]);
-        out[i * 4 + 2] = hex_byte(s[offset + 2], s[offset + 3]);
-        out[i * 4 + 3] = hex_byte(s[offset], s[offset + 1]);
-        i += 1;
+pub(crate) fn decode_ipv6_fast(s: &[u8]) -> [u8; IPV6_WORDS * IPV6_WORD_BYTES] {
+    let mut out = [0; IPV6_WORDS * IPV6_WORD_BYTES];
+    for (word, chunk) in out.chunks_exact_mut(IPV6_WORD_BYTES).enumerate() {
+        // Each word is stored byte-reversed, so read it back-to-front.
+        let hex = word * IPV6_WORD_HEX;
+        for (byte, dst) in chunk.iter_mut().enumerate() {
+            let hi = hex + (IPV6_WORD_BYTES - 1 - byte) * HEX_DIGITS;
+            *dst = hex_byte(s[hi], s[hi + 1]);
+        }
     }
     out
 }

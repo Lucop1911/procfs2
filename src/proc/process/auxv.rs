@@ -2,6 +2,13 @@ use std::path::PathBuf;
 
 use crate::error::{Error, Result};
 
+/// One auxv entry: a `(type, value)` pair of machine words.
+const ENTRY_SIZE: usize = std::mem::size_of::<[u64; 2]>();
+// The indexing below reads two 8-byte words out of each entry.
+const _: () = assert!(ENTRY_SIZE == 16);
+/// Page size assumed when `AT_PAGESZ` is absent (Linux's usual default).
+const DEFAULT_PAGE_SIZE: u64 = 4096;
+
 /// Entry type tags used in the auxiliary vector.
 ///
 /// These are the `AT_*` constants from `<elf.h>`. The set is open
@@ -75,17 +82,17 @@ impl Auxv {
     /// The file is a flat array of `(type, value)` word pairs in
     /// native byte order, terminated by an `AT_NULL` entry.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() % 16 != 0 {
+        if bytes.len() % ENTRY_SIZE != 0 {
             return Err(Error::Parse {
                 path: PathBuf::from("<auxv>"),
                 line: 0,
-                msg: "size is not a multiple of 16 bytes",
+                msg: "size is not a multiple of the auxv entry size",
             });
         }
 
         let mut entries = Vec::new();
 
-        for chunk in bytes.chunks_exact(16) {
+        for chunk in bytes.chunks_exact(ENTRY_SIZE) {
             let type_tag = u64::from_ne_bytes([
                 chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
             ]);
@@ -117,6 +124,6 @@ impl Auxv {
     /// Falls back to 4096 if the entry is missing, which should not
     /// happen on a normal Linux system.
     pub fn page_size(&self) -> u64 {
-        self.get(auxv_type::AT_PAGESZ).unwrap_or(4096)
+        self.get(auxv_type::AT_PAGESZ).unwrap_or(DEFAULT_PAGE_SIZE)
     }
 }

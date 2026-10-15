@@ -2,6 +2,10 @@ use crate::error::{Error, Result};
 use crate::util::parse;
 use std::os::unix::ffi::OsStrExt;
 
+/// Colon-separated fields in a `/proc/PID/cgroup` line:
+/// `hierarchy:controllers:path`.
+const CGROUP_FIELDS: usize = 3;
+
 /// A single cgroup membership entry from `/proc/PID/cgroup`.
 ///
 /// Each line describes one cgroup hierarchy the process belongs to:
@@ -40,8 +44,8 @@ impl CgroupEntry {
     fn parse_line(line: &[u8]) -> Result<Self> {
         // /proc/PID/cgroup uses colon-separated fields:
         // hierarchy:controllers:path
-        let fields: Vec<&[u8]> = line.splitn(3, |&b| b == b':').collect();
-        if fields.len() < 3 {
+        let fields: Vec<&[u8]> = line.splitn(CGROUP_FIELDS, |&b| b == b':').collect();
+        if fields.len() < CGROUP_FIELDS {
             return Err(Error::Parse {
                 path: std::path::PathBuf::from("<cgroup>"),
                 line: 0,
